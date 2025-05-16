@@ -1,0 +1,30 @@
+yolo.weights
+桴浵湢楡彬敧敮慲潴⽲潭敤獬礯汯⹯敷杩瑨⁳਍琢畨扭慮汩束湥牥瑡牯洯摯汥⽳潹潬眮楥桧獴•਍桴浵湢楡彬敧敮慲潴⽲潭敤獬礯汯⹯敷杩瑨⁳਍
+
+.venv/
+.env
+.env.local
+.env.production
+Clipping-project/src/media/*
+
+# Ignore image files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.svg
+
+# Ignore video files
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.flv
+*.wmv
+*.webm
+*.m4v
+
+__pycache__/
