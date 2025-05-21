@@ -5,7 +5,6 @@ from models.job_manager import manager
 
 router = APIRouter()
 
-
 @router.websocket("/status/{job_id}")
 async def websocket_status(websocket: WebSocket, job_id: str):
     await websocket.accept()

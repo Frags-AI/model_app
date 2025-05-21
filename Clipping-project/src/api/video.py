@@ -9,7 +9,7 @@ import os
 
 router = APIRouter()
 
-@router.post("/upload-video/")
+@router.post("/upload/")
 async def upload_video(video: Annotated[UploadFile, File(...)], video_name: Annotated[str, Form()], job_id: Annotated[str, Form()], background_tasks: BackgroundTasks ):
     if not video:
         raise HTTPException(status_code=400, detail="Please upload a file")
