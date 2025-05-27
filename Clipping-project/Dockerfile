@@ -7,7 +7,7 @@
 # Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
 
 ARG PYTHON_VERSION=3.12.10
-FROM python:${PYTHON_VERSION}-slim as base
+FROM python:${PYTHON_VERSION}-slim AS base
 
 # Prevents Python from writing pyc files.
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -47,8 +47,12 @@ USER root
 # Copy the source code into the container.
 COPY . .
 
+
 # Expose the port that the application listens on.
 EXPOSE 8000
+WORKDIR /app/src
+
+COPY ./src/models/pretrained /app/src/models/pretrained
 
 # Run the application.
-CMD ["uvicorn", 'src.main:app', "--host", "0.0.0.0" "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -8,7 +8,14 @@ from websocket.router import router as ws_router
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.client_url, settings.api_url],
+    allow_origins=[
+      "https://fragsai.com", 
+      "https://www.fragsai.com", 
+      "https://www.model.fragsai.com", 
+      "https://model.fragsai.com", 
+      "https://www.backend.fragsai.com",
+      "https://backend.fragsai.com"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
