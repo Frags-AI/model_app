@@ -14,7 +14,10 @@ app.add_middleware(
       "https://www.model.fragsai.com", 
       "https://model.fragsai.com", 
       "https://www.backend.fragsai.com",
-      "https://backend.fragsai.com"
+      "https://backend.fragsai.com",
+      "http://localhost:5173.com",
+      "http://localhost:8000.com",
+      "http://localhost:3000.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -29,6 +32,6 @@ app.include_router(ws_router, prefix="/ws")
 async def server_status():
     return JSONResponse({"message": "LLM server is active and running"})
 
-if __name__ == "__main__" and settings.environment == "development":
+if __name__ == "__main__" and settings.environment == "DEVELOPMENT":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

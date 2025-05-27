@@ -11,6 +11,5 @@ def generate_thumbnail(mode: Annotated[int, Form(...)], file: Annotated[UploadFi
     if None == file == prompt == text:
         return JSONResponse({"error": "Please pass in parameters"})
 
-
     path = thumbnail_generator(mode, file, prompt, text)
     return JSONResponse({"path": path})
