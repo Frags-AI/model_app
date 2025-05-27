@@ -5,6 +5,8 @@ import os
 load_dotenv()
 
 class Settings(BaseSettings):
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
     upload_folder: str = "src\\media\\uploads"
     download_folder: str = "src\\media\\downloads"
     allowed_extensions: list[str] = ["mp4", "mov", "webm", "avi", "mkv"]
@@ -15,6 +17,6 @@ class Settings(BaseSettings):
     signing_secret: str = os.environ.get("MODEL_SIGNING_SECRET")
     openai_key: str = os.environ.get("OPENAI_API_KEY")
     cfg_path: str | None = os.environ.get("CFG_PATH", os.path.abspath("src\\models\\pretrained\\yolov3.cfg"))
-    weight_path: str | None = os.environ.get("WEIGHT_PATH", os.path.abspath("src\\models\\pretrained\\yolo.weights"))        
+    weight_path: str | None = os.environ.get("WEIGHT_PATH", os.path.abspath("src\\models\\pretrained\\yolo.weights"))      
 
 settings = Settings()
