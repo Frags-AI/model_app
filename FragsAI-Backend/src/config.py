@@ -1,7 +1,6 @@
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 import os
-
 load_dotenv()
 
 class Settings(BaseSettings):
@@ -14,7 +13,7 @@ class Settings(BaseSettings):
     client_url: str = os.environ.get("CLIENT_URL")
     signing_secret: str = os.environ.get("MODEL_SIGNING_SECRET")
     openai_key: str = os.environ.get("OPENAI_API_KEY")
-    cfg_path: str | None = os.environ.get("CFG_PATH", os.path.abspath("models/pretrained/yolov3.cfg"))
-    weight_path: str | None = os.environ.get("WEIGHT_PATH", os.path.abspath("models/pretrained/yolo.weights"))        
+    cfg_path: str | None = os.environ.get("CFG_PATH", os.path.abspath("src/models/pretrained/yolov3.cfg"))
+    weight_path: str | None = os.environ.get("WEIGHT_PATH", os.path.abspath("src/models/pretrained/yolo.weights"))        
 
 settings = Settings()

@@ -2,10 +2,12 @@ from fastapi import UploadFile, File, Form, BackgroundTasks, HTTPException, APIR
 from werkzeug.utils import secure_filename
 from fastapi.responses import JSONResponse
 from services.video_processing import process_and_update_video
+from services.transfer import transfer_clips_to_backend
 from typing import Annotated
 from config import settings
 import logging
 import os
+import requests
 
 router = APIRouter()
 
