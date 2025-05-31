@@ -36,15 +36,21 @@ def extract_frames(video_path):
         normalized_frame = resized_frame / MAX_PIXEL_VALUE
         frames_list.append(normalized_frame)
     videoObj.release()
-    while len(frames_list) < TIMESTEPS:
+    # Pad frames if fewer than TIMESTEPS
+    while len(frames_list) < TIMESTEPS and len(frames_list) > 0:
         frames_list.append(frames_list[-1])
+    # Handle empty video case
+    if len(frames_list) == 0:
+        logging.warning(f"No frames extracted from video: {video_path}")
+        # Return dummy frames of zeros if no frames extracted
+        return np.zeros((TIMESTEPS, IMAGE_HEIGHT, IMAGE_WIDTH, NO_OF_CHANNELS))
     return np.array(frames_list[:TIMESTEPS])
 
 # Function to process a batch of videos
 def process_batch(class_dir, class_index, video_files):
     features = []
     labels = []
-    logging.info(f"Processing batch for class index: {class_index}")
+    logging.info(f"Processing batch for class '{CLASS_CATEGORIES_LIST[class_index]}' with {len(video_files)} videos")
     for video_name in video_files:
         video_path = os.path.join(class_dir, video_name)
         frames = extract_frames(video_path)
@@ -53,22 +59,39 @@ def process_batch(class_dir, class_index, video_files):
     return np.array(features), np.array(labels)
 
 # Prepare datasets
-dataset_dir = '/Users/kesinishivaram/FragsAI/UCF50'  # Adjust path to your dataset
+dataset_dir = "C:/Users/mdama/Downloads/UCF50/UCF50"  # Adjust path to your dataset
 all_features = []
 all_labels = []
 
 logging.info("Preparing datasets")
+
+# Check if at least one class directory exists
+existing_classes = [cls for cls in CLASS_CATEGORIES_LIST if os.path.isdir(os.path.join(dataset_dir, cls))]
+if len(existing_classes) == 0:
+    logging.error(f"No class directories found in dataset path: {dataset_dir}. Exiting.")
+    exit(1)
+
 for class_index, class_name in enumerate(CLASS_CATEGORIES_LIST):
     class_dir = os.path.join(dataset_dir, class_name)
     if not os.path.isdir(class_dir):
-        raise ValueError(f"Directory {class_dir} does not exist")
-    video_files = os.listdir(class_dir)
+        logging.warning(f"Directory for class '{class_name}' not found: {class_dir}. Skipping this class.")
+        continue  # Skip if class directory doesn't exist
+    
+    video_files = [f for f in os.listdir(class_dir) if f.lower().endswith(('.mp4', '.avi', '.mov'))]
+    if len(video_files) == 0:
+        logging.warning(f"No video files found in directory: {class_dir}. Skipping this class.")
+        continue  # Skip if no videos in class folder
+    
     num_batches = len(video_files) // BATCH_SIZE + (1 if len(video_files) % BATCH_SIZE != 0 else 0)
     for batch_num in range(num_batches):
         batch_files = video_files[batch_num * BATCH_SIZE:(batch_num + 1) * BATCH_SIZE]
         batch_features, batch_labels = process_batch(class_dir, class_index, batch_files)
         all_features.append(batch_features)
         all_labels.append(batch_labels)
+
+if len(all_features) == 0 or len(all_labels) == 0:
+    logging.error("No data found to train on after processing classes. Exiting.")
+    exit(1)
 
 # Concatenate all features and labels
 logging.info("Concatenating all features and labels")
@@ -130,7 +153,7 @@ logging.info("Saving the model")
 date_time_format = '%Y_%m_%d__%H_%M_%S'
 current_date_time_dt = dt.datetime.now()
 current_date_time_string = dt.datetime.strftime(current_date_time_dt, date_time_format)
-model_name = f'Model___Date_Time_{current_date_time_string}___Loss_{model_evaluation_loss}___Accuracy_{model_evaluation_accuracy}.h5'
+model_name = f'Model___Date_Time_{current_date_time_string}___Loss_{model_evaluation_loss:.4f}___Accuracy_{model_evaluation_accuracy:.4f}.h5'
 model.save(model_name)
 
 # Print model summary after saving
