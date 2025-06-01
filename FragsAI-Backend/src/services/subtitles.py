@@ -1,10 +1,11 @@
 import os
 import math
+from typing import Iterable
 import ffmpeg
 import pysrt
 from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip, AudioFileClip
 from faster_whisper import WhisperModel
-
+from config import settings
 
 def extract_audio(video_path):
     """
@@ -33,7 +34,7 @@ def transcribe(audio_path):
     """
     model = WhisperModel("small")
     segments, info = model.transcribe(audio_path)
-    language = info[0]
+    language = info.language
     print("Transcription language:", language)
     return language, segments
 
@@ -51,7 +52,7 @@ def format_time(seconds):
     return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
 
 
-def generate_subtitle_file(language, segments, video_path):
+def generate_subtitle_file(language: str, segments, video_path: str):
     """
     Generates a subtitle file (SRT) from transcription segments.
     Args:
@@ -64,8 +65,9 @@ def generate_subtitle_file(language, segments, video_path):
     video_name = os.path.splitext(os.path.basename(video_path))[0]
     subtitle_file = os.path.join(os.path.dirname(video_path), f"sub-{video_name}.{language}.srt")
     os.makedirs(os.path.dirname(subtitle_file), exist_ok=True)
-    with open(subtitle_file, "w") as f:
+    with open(subtitle_file, "w", encoding="utf-8") as f:
         for index, segment in enumerate(segments):
+            print(segment)
             start = format_time(segment.start)
             end = format_time(segment.end)
             f.write(f"{index+1}\n{start} --> {end}\n{segment.text}\n\n")
@@ -100,7 +102,7 @@ def create_subtitle_clips(subtitles, videosize, fontsize=24, font='Arial', color
     return subtitle_clips
 
 
-def add_subtitle_to_video(video_path, subtitle_file, audio_file, font, color):
+def add_subtitle_to_video(video_path: str, subtitle_file: str, audio_file: str, font: str, color: str):
     """
     Adds subtitles to a video with custom font and color.
     Args:
@@ -114,7 +116,7 @@ def add_subtitle_to_video(video_path, subtitle_file, audio_file, font, color):
     """
     video = VideoFileClip(video_path)
     subtitles = pysrt.open(subtitle_file)
-    output_video_file = video_path.replace('.mp4', '_subtitled.mp4')
+    output_video_file = os.path.join(settings.download_folder, "videos", "video.mp4")
 
     subtitle_clips = create_subtitle_clips(subtitles, video.size, font=font, color=color)
     final_video = CompositeVideoClip([video] + subtitle_clips)

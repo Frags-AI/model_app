@@ -5,7 +5,7 @@ yolo.weights
 .env
 .env.local
 .env.production
-Clipping-project/src/media/*
+FragsAI-Backend/media
 
 # Ignore image files
 *.png
@@ -26,5 +26,7 @@ Clipping-project/src/media/*
 *.wmv
 *.webm
 *.m4v
+
+packages.txt
 
 __pycache__/

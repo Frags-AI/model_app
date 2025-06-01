@@ -1,6 +1,8 @@
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
+from moviepy.config import change_settings
 import os
+
 load_dotenv()
 
 class Settings(BaseSettings):
@@ -13,7 +15,26 @@ class Settings(BaseSettings):
     client_url: str = os.environ.get("CLIENT_URL")
     signing_secret: str = os.environ.get("MODEL_SIGNING_SECRET")
     openai_key: str = os.environ.get("OPENAI_API_KEY")
+    sandbox_development_key: str = "uxkEreSYgnrPj4q4hxVuJYqA0jwDoQ3SjIvwiEEV"
+    sandbox_production_key: str = "xB9YvCM80apOAjKyfAJCwHKYsc0XuQq4dKpDv3Th"
     cfg_path: str | None = os.environ.get("CFG_PATH", os.path.abspath("src/models/pretrained/yolov3.cfg"))
-    weight_path: str | None = os.environ.get("WEIGHT_PATH", os.path.abspath("src/models/pretrained/yolo.weights"))        
+    weight_path: str | None = os.environ.get("WEIGHT_PATH", os.path.abspath("src/models/pretrained/yolo.weights"))
+    image_magick_path: str = os.environ.get("MAGICK_PATH") # Path to magick.exe file
+
+    # Add subdirectories here
+    def generate_subdirectories(self):
+        subdirectories = ["videos", "thumbnails", "audios"]
+
+        for subdirectory in subdirectories:
+            upload_folder_path = os.path.join(self.upload_folder, subdirectory)
+            download_folder_path = os.path.join(self.download_folder, subdirectory)
+            os.makedirs(upload_folder_path, exist_ok=True)
+            os.makedirs(download_folder_path, exist_ok=True)
+
+    # Make sure to install magick.exe
+    def set_image_magick_path(self):
+        change_settings({"IMAGEMAGICK_BINARY": self.image_magick_path})
 
 settings = Settings()
+settings.generate_subdirectories()
+settings.set_image_magick_path()

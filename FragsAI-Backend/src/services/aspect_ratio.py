@@ -2,7 +2,7 @@ import moviepy.editor as mp
 import logging
 import os
 
-def enhance_video_aspect_ratio(input_video, output_folder, desired_aspect_ratio=9/16, target_width=720, target_height=1280):
+def enhance_video_aspect_ratio(input_video: str, output_folder: str, desired_aspect_ratio=9/16, target_width=720, target_height=1280):
     """
     Enhances the video by adjusting its aspect ratio for platforms like TikTok/Shorts.
     Args:
