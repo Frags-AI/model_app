@@ -6,18 +6,19 @@ import os
 router=APIRouter()
 
 @router.post('')
-async def adjust_aspect_ratio(ratio: str = Form(...), file: UploadFile = File(...)):
+async def adjust_aspect_ratio(ratio: str = Form(...), file: UploadFile = File(...), method: str = Form(...)):
     input_video_path = os.path.join(settings.upload_folder, "videos", file.filename)
     output_folder_path = os.path.join(settings.download_folder, "videos")
 
     ratio_mapping = {"9:16": 9/16, "16:9": 16/9, "1:1": 1}
+    
 
     # Save uploaded video to disk
     with open(input_video_path, "wb") as f:
         f.write(await file.read())
 
     # Process the video
-    output_video_path = enhance_video_aspect_ratio(input_video_path, output_folder_path, ratio_mapping[ratio])
+    output_video_path = enhance_video_aspect_ratio(input_video_path, output_folder_path, ratio_mapping[ratio], method)
 
     if output_video_path and os.path.exists(output_video_path):
         return StreamingResponse(
