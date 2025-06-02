@@ -1,8 +1,8 @@
-from fastapi import UploadFile, File, Form, BackgroundTasks, HTTPException, APIRouter
+from fastapi import UploadFile, File, Form, HTTPException, APIRouter
 from werkzeug.utils import secure_filename
 from fastapi.responses import JSONResponse
 from services.video_processing import process_and_update_video
-from services.transfer import transfer_clips_to_backend
+from celery_app.job_manager import manager
 from typing import Annotated
 from config import settings
 import logging
@@ -12,7 +12,7 @@ import requests
 router = APIRouter()
 
 @router.post("/upload/")
-async def upload_video(video: Annotated[UploadFile, File(...)], video_name: Annotated[str, Form()], job_id: Annotated[str, Form()], background_tasks: BackgroundTasks ):
+async def upload_video(video: UploadFile = File(...), video_name: str = Form(...), job_id: str = Form(...)):
     if not video:
         raise HTTPException(status_code=400, detail="Please upload a file")
     
@@ -31,7 +31,13 @@ async def upload_video(video: Annotated[UploadFile, File(...)], video_name: Anno
         while chunk := await video.read(1024 * 1024):
             f.write(chunk)
 
-    background_tasks.add_task(process_and_update_video, job_id, save_path)
-    logging.info("File has been successfully uploaded. Video processing will begin shortly")
+    
+    manager.add_job(job_id)
+    task = process_and_update_video.delay(job_id, save_path)
+    logging.info(f"Enqueued video processing task {task.id} for job {job_id}")
 
-    return JSONResponse(content={"message": "File has been temporarily stored", "job_id": job_id}, media_type="application/json")
+    return JSONResponse({
+        "message": "File stored; processing started",
+        "job_id":   job_id,
+        "task_id":  task.id
+    })

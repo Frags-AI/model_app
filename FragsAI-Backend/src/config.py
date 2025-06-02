@@ -6,6 +6,8 @@ import os
 load_dotenv()
 
 class Settings(BaseSettings):
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
     upload_folder: str = "media/uploads"
     download_folder: str = "media/downloads"
     allowed_extensions: list[str] = ["mp4", "mov", "webm", "avi", "mkv"]
