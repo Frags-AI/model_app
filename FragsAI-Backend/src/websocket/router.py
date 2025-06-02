@@ -23,10 +23,11 @@ async def websocket_status(websocket: WebSocket, job_id: str):
     while True:
         await asyncio.sleep(2)
         job = manager.get_job(job_id)
-        status = job.get_status()
-        progress = job.get_JSON()
-        await websocket.send_json({"status": status, "progress": progress, "ok": True})
+        data = job.get_JSON()
+        data["type"] = "progress"
+        await websocket.send_json(data)
+        status = manager.get_job_status(job_id)
         if status == "completed":
-            await websocket.send_json({"message": "Video has finished processing!", "ok": True, "status": "completed"})
+            await websocket.send_json({"message": "Video has finished processing!", "ok": True, "status": "connection"})
             break
     await websocket.close()

@@ -20,14 +20,14 @@ class Job:
         self.status = status
 
     def get_video_progress(self) -> int:
-        info = self._result.info or {}
+        info = self._result.info
         return info.get('clip_progress', self.video_progress)
 
     def set_video_progress(self, progress: int):
         self.video_progress = progress
 
     def get_frame_progress(self) -> int:
-        info = self._result.info or {}
+        info = self._result.info
         return info.get('motion_progress', self.motion_progress)
 
     def set_motion_progress(self, progress: int):

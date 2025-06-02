@@ -15,13 +15,13 @@ logging.basicConfig(
 
 def detect_motion(video_path, job: Job, segment_duration=60, fps_threshold=10):
     cap = cv2.VideoCapture(video_path)
-    fps = cap.get(cv2.CAP_PROP_FPS) or 1.0
+    fps = cap.get(cv2.CAP_PROP_FPS)
     frame_skip = max(1, int(fps / fps_threshold))
 
     prev_frame = None
     motion_scores = {}
 
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = total_frames / fps
     total_segments = int(duration // segment_duration)
 
@@ -78,8 +78,8 @@ def segment_video_and_audio(video_path, output_dir, job: Job, segment_duration=6
         job.set_status("completed")
         return
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     if fps <= 0 or total_frames <= 0:
         logging.error("Invalid video file or unreadable metadata.")
