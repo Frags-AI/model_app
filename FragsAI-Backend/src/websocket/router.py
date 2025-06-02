@@ -1,9 +1,10 @@
 from fastapi import APIRouter, WebSocket
 import asyncio
 import logging
-from models.job_manager import manager
+from celery_app.job_manager import manager
 
 router = APIRouter()
+
 
 @router.websocket("/status/{job_id}")
 async def websocket_status(websocket: WebSocket, job_id: str):
@@ -27,6 +28,6 @@ async def websocket_status(websocket: WebSocket, job_id: str):
         await websocket.send_json(data)
         status = manager.get_job_status(job_id)
         if status == "completed":
-            websocket.send_json({"message": "Video has finished processing!", "ok": True, "type": "connection"})
+            await websocket.send_json({"message": "Video has finished processing!", "ok": True, "type": "connection"})
             break
     await websocket.close()

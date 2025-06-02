@@ -1,19 +1,26 @@
 import os
+import logging
+from celery_app.app import app
+from celery.utils.log import get_task_logger
 from config import settings
-from models.job_manager import manager
-from services.transfer import transfer_clips_to_backend
+from celery_app.job_manager import manager
 from services.clip_segmentation import segment_video_and_audio
-from fastapi.responses import JSONResponse
+from services.transfer import transfer_clips_to_backend
 
-def process_and_update_video(job_id, path):
+logger = get_task_logger(__name__)
+
+@app.task(bind=True)
+def process_and_update_video(self, job_id: str, path: str):
     if not manager.exists(job_id):
         manager.add_job(job_id)
-        job = manager.get_job(job_id)
+    job = manager.get_job(job_id)
 
-        segment_video_and_audio(path, settings.download_folder, job)
-        path = os.path.join(settings.download_folder, "videos")
+    segment_video_and_audio(path, settings.download_folder, job)
+    self.update_state(state="PROGRESS", meta=job.get_JSON())
 
-        response = transfer_clips_to_backend(path, job)
-        manager.remove_job(job_id)
-        data = response.json()
-        return JSONResponse(data)
+    output_dir = os.path.join(settings.download_folder, "videos")
+    response = transfer_clips_to_backend(output_dir, job)
+
+    manager.remove_job(job_id)
+    logger.info(f"Completed job {job_id}; removed from manager.")
+    return response.json()

@@ -1,4 +1,4 @@
-from models.job_manager import Job
+from celery_app.job_manager import Job
 from config import settings
 import requests
 import os
@@ -13,4 +13,19 @@ def transfer_clips_to_backend(path: str, job: Job):
         "model_signing_secret": settings.signing_secret
     }
 
-    return requests.post(f"{settings.api_url}/api/video/project/upload", headers=headers, files=files, data={"job_id": job.get_id(), "status": job.get_status()})
+    payload = {
+        "job_id": job.get_id(),
+        "status": job.get_status()
+    }
+
+    response = requests.post(
+        f"{settings.api_url}/api/video/project/upload",
+        headers=headers,
+        files=files,
+        data=payload
+    )
+
+    for _, (fname, fh, _) in files:
+        fh.close()
+
+    return response
