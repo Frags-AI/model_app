@@ -25,6 +25,8 @@ class Settings(BaseSettings):
 
     # Add subdirectories here
     def generate_subdirectories(self):
+        os.makedirs(self.upload_folder, exist_ok=True)
+        os.makedirs(self.download_folder, exist_ok=True)
         subdirectories = ["videos", "thumbnails", "audios"]
 
         for subdirectory in subdirectories:
