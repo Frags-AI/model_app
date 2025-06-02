@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     cfg_path: str | None = os.environ.get("CFG_PATH", os.path.abspath("src/models/pretrained/yolov3.cfg"))
     weight_path: str | None = os.environ.get("WEIGHT_PATH", os.path.abspath("src/models/pretrained/yolo.weights"))
     image_magick_path: str = os.environ.get("MAGICK_PATH") # Path to magick.exe file
+    elevenlabs_api_key: str = os.environ.get("ELEVENLABS_API_KEY")
+    elevenlabs_url: str = os.environ.get("ELEVENLABS_URL", "https://api.elevenlabs.io/v1/text-to-speech/cgSgspJ2msm6clMCkdW9")
+    stable_diffusion_key: str = os.environ.get("STABLE_DIFFUSION_KEY")
+    stable_diffusion_url: str = os.environ.get("STABLE_DIFFUSION_URL", "https://api.stablediffusionapi.com/v1/generate")
+    
 
     # Add subdirectories here
     def generate_subdirectories(self):

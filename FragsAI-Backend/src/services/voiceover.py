@@ -1,8 +1,8 @@
 import requests
+from config import settings
 
-# API key for Elevenlabs
-api_key = "sk_6f62bfcfbfc050e98fc97db2e8e8701db7a52654c95d788c"
-url = "https://api.elevenlabs.io/v1/text-to-speech/cgSgspJ2msm6clMCkdW9" # https://api.elevenlabs.io/v1/text-to-speech/Voiceid
+api_key = settings.elevenlabs_api_key
+url = settings.elevenlabs_url
 
 def generate_voiceover(text, voice="Jessica", output_path="voiceover.mp3"):
     """

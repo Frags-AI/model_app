@@ -1,8 +1,8 @@
 import requests
+from config import settings
 
-# Stable Diffusion API key
-api_key = "GE9sBm4fepU46hfVhLAP4AoNvwdqb4ulXp4y6ubV8IkhX1CgTKsxjhGOCU3t"
-url = "https://api.stablediffusionapi.com/v1/generate"
+api_key = settings.stable_diffusion_key
+url = settings.stable_diffusion_url
 
 def generate_background(prompt, output_path="background_image.png", width=1024, height=576):
     """
