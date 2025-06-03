@@ -1,6 +1,6 @@
 from typing import List, Optional
 from celery.result import AsyncResult
-from celery_app.app import app
+from celery_app.app import celery
 
 class Job:
     def __init__(self, task_id: str):
@@ -8,7 +8,7 @@ class Job:
         self.status = 'queued'
         self.video_progress = 0
         self.motion_progress = 0
-        self._result = AsyncResult(task_id, app=app)
+        self._result = AsyncResult(task_id, app=celery)
 
     def get_id(self) -> str:
         return self.task_id
@@ -59,7 +59,7 @@ class JobManager:
 
     def remove_job(self, job_id: str) -> None:
         self.jobs = [job for job in self.jobs if job.get_id() != job_id]
-        AsyncResult(job_id, app=app).revoke(terminate=True)
+        AsyncResult(job_id, app=celery).revoke(terminate=True)
 
     def get_job_status(self, job_id: str) -> Optional[str]:
         job = self.get_job(job_id)

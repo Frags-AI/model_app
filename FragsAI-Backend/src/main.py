@@ -32,6 +32,6 @@ app.include_router(ws_router, prefix="/ws")
 async def server_status():
     return JSONResponse({"message": "LLM server is active and running"})
 
-if __name__ == "__main__" and settings.environment == "DEVELOPMENT":
+if __name__ == "__main__" and settings.ENVIRONMENT == "DEVELOPMENT":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

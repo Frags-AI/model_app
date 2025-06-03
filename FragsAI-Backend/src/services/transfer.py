@@ -10,7 +10,7 @@ def transfer_clips_to_backend(path: str, job: Job):
         files.append(("files", (filename, open(full_path, "rb"), "video/mp4")))
 
     headers = {
-        "model_signing_secret": settings.signing_secret
+        "model_signing_secret": settings.SIGNING_SECRET
     }
 
     payload = {
@@ -19,7 +19,7 @@ def transfer_clips_to_backend(path: str, job: Job):
     }
 
     response = requests.post(
-        f"{settings.api_url}/api/video/project/upload",
+        f"{settings.API_URL}/api/video/project/upload",
         headers=headers,
         files=files,
         data=payload

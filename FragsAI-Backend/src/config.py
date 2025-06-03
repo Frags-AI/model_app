@@ -6,38 +6,38 @@ import os
 load_dotenv()
 
 class Settings(BaseSettings):
-    CELERY_BROKER_URL: str
-    CELERY_RESULT_BACKEND: str
-    upload_folder: str = "media/uploads"
-    download_folder: str = "media/downloads"
-    allowed_extensions: list[str] = ["mp4", "mov", "webm", "avi", "mkv"]
-    environment: str = os.environ.get("ENVIRONMENT")
-    host_name: str = os.environ.get("HOST_NAME")
-    api_url: str = os.environ.get("API_URL")
-    client_url: str = os.environ.get("CLIENT_URL")
-    signing_secret: str = os.environ.get("MODEL_SIGNING_SECRET")
-    openai_key: str = os.environ.get("OPENAI_API_KEY")
-    sandbox_development_key: str = "uxkEreSYgnrPj4q4hxVuJYqA0jwDoQ3SjIvwiEEV"
-    sandbox_production_key: str = "xB9YvCM80apOAjKyfAJCwHKYsc0XuQq4dKpDv3Th"
-    cfg_path: str | None = os.environ.get("CFG_PATH", os.path.abspath("src/models/pretrained/yolov3.cfg"))
-    weight_path: str | None = os.environ.get("WEIGHT_PATH", os.path.abspath("src/models/pretrained/yolo.weights"))
-    image_magick_path: str = os.environ.get("MAGICK_PATH") # Path to magick.exe file
+    CELERY_BROKER_URL: str = os.environ.get("CELERY_BROKER")
+    CELERY_RESULT_BACKEND: str = os.environ.get("CELERY_BACKEND")
+    UPLOAD_FOLDER: str = "media/uploads"
+    DOWNLOAD_FOLDER: str = "media/downloads"
+    ALLOWED_EXTENSIONS: list[str] = ["mp4", "mov", "webm", "avi", "mkv"]
+    ENVIRONMENT: str = os.environ.get("ENVIRONMENT")
+    HOST_NAME: str = os.environ.get("HOST_NAME")
+    API_URL: str = os.environ.get("API_URL")
+    CLIENT_URL: str = os.environ.get("CLIENT_URL")
+    SIGNING_SECRET: str = os.environ.get("MODEL_SIGNING_SECRET")
+    OPENAI_KEY: str = os.environ.get("OPENAI_API_KEY")
+    SANDBOX_DEVELOPMENT_KEY: str = "uxkEreSYgnrPj4q4hxVuJYqA0jwDoQ3SjIvwiEEV"
+    SANDBOX_PRODUCTION_KEY: str = "xB9YvCM80apOAjKyfAJCwHKYsc0XuQq4dKpDv3Th"
+    CFG_PATH: str | None = os.environ.get("CFG_PATH", os.path.abspath("models/pretrained/yolov3.cfg"))
+    WEIGHT_PATH: str | None = os.environ.get("WEIGHT_PATH", os.path.abspath("models/pretrained/yolo.weights"))
+    IMAGE_MAGICK_PATH: str = os.environ.get("MAGICK_PATH") # Path to magick.exe file
 
     # Add subdirectories here
     def generate_subdirectories(self):
-        os.makedirs(self.upload_folder, exist_ok=True)
-        os.makedirs(self.download_folder, exist_ok=True)
+        os.makedirs(self.UPLOAD_FOLDER, exist_ok=True)
+        os.makedirs(self.DOWNLOAD_FOLDER, exist_ok=True)
         subdirectories = ["videos", "thumbnails", "audios"]
 
         for subdirectory in subdirectories:
-            upload_folder_path = os.path.join(self.upload_folder, subdirectory)
-            download_folder_path = os.path.join(self.download_folder, subdirectory)
+            upload_folder_path = os.path.join(self.UPLOAD_FOLDER, subdirectory)
+            download_folder_path = os.path.join(self.DOWNLOAD_FOLDER, subdirectory)
             os.makedirs(upload_folder_path, exist_ok=True)
             os.makedirs(download_folder_path, exist_ok=True)
 
     # Make sure to install magick.exe
     def set_image_magick_path(self):
-        change_settings({"IMAGEMAGICK_BINARY": self.image_magick_path})
+        change_settings({"IMAGEMAGICK_BINARY": self.IMAGE_MAGICK_PATH})
 
 settings = Settings()
 settings.generate_subdirectories()

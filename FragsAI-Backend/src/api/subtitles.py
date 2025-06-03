@@ -1,5 +1,5 @@
 from fastapi import APIRouter,UploadFile,File
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 import os
 from services.subtitles import (
     transcribe,extract_audio,generate_subtitle_file,
@@ -11,7 +11,7 @@ router=APIRouter()
 @router.post("/clip/")
 async def add_subtitles(file:UploadFile=File(...)):
     print(file)
-    video_path = os.path.join(settings.upload_folder, "videos", file.filename)
+    video_path = os.path.join(settings.UPLOAD_FOLDER, "videos", file.filename)
 
     with open(video_path, "wb") as f:
         content = await file.read()

@@ -17,7 +17,7 @@ IMAGE_HEIGHT, IMAGE_WIDTH = 64, 64
 MAX_PIXEL_VALUE = 255
 NO_OF_CHANNELS = 3
 TIMESTEPS = 10
-VIRALITY_FOLDER_PATH = os.path.join(settings.download_folder, "clip_virality")
+VIRALITY_FOLDER_PATH = os.path.join(settings.DOWNLOAD_FOLDER, "clip_virality")
 os.makedirs(VIRALITY_FOLDER_PATH, exist_ok=True)
 
 # Event Weights

@@ -24,7 +24,7 @@ async def upload_video(video: UploadFile = File(...), video_name: str = Form(...
         video_name = video_name.split(".")[0]
 
     secure_name = secure_filename(video_name + "." + ext)
-    save_path = os.path.join(settings.upload_folder, "videos", secure_name)
+    save_path = os.path.join(settings.UPLOAD_FOLDER, "videos", secure_name)
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     with open(save_path, "wb") as f:

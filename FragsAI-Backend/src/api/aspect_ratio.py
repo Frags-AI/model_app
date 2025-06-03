@@ -7,8 +7,8 @@ router=APIRouter()
 
 @router.post('')
 async def adjust_aspect_ratio(ratio: str = Form(...), file: UploadFile = File(...), method: str = Form(...)):
-    input_video_path = os.path.join(settings.upload_folder, "videos", file.filename)
-    output_folder_path = os.path.join(settings.download_folder, "videos")
+    input_video_path = os.path.join(settings.UPLOAD_FOLDER, "videos", file.filename)
+    output_folder_path = os.path.join(settings.DOWNLOAD_FOLDER, "videos")
 
     ratio_mapping = {"9:16": 9/16, "16:9": 16/9, "1:1": 1}
     

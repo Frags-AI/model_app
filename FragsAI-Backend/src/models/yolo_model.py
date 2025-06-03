@@ -27,4 +27,4 @@ class YOLOModel():
     def get_details(self):
         return self.net, self.output_layers, self.class_labels
 
-yolo_model = YOLOModel(settings.weight_path, settings.cfg_path, DEFAULT_CLASS_LABELS)
+yolo_model = YOLOModel(settings.WEIGHT_PATH, settings.CFG_PATH, DEFAULT_CLASS_LABELS)

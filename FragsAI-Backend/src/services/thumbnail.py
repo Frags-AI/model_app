@@ -9,7 +9,7 @@ import logging
 
 # Initialize OpenAI client
 import openai
-openai.api_key=settings.openai_key
+openai.api_key=settings.OPENAI_KEY
 
 cv2_map = {
     "cv2.FONT_HERSHEY_SIMPLEX": cv2.FONT_HERSHEY_SIMPLEX,

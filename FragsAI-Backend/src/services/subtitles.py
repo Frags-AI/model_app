@@ -116,7 +116,7 @@ def add_subtitle_to_video(video_path: str, subtitle_file: str, audio_file: str, 
     """
     video = VideoFileClip(video_path)
     subtitles = pysrt.open(subtitle_file)
-    output_video_file = os.path.join(settings.download_folder, "videos", "video.mp4")
+    output_video_file = os.path.join(settings.DOWNLOAD_FOLDER, "videos", "video.mp4")
 
     subtitle_clips = create_subtitle_clips(subtitles, video.size, font=font, color=color)
     final_video = CompositeVideoClip([video] + subtitle_clips)
