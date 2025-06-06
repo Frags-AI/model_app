@@ -173,3 +173,7 @@ wheel==0.45.1
 wrapt==1.17.2
 wsproto==1.2.0
 yarg==0.1.9
+
+flash_attn -q timm -q
+-q supervision
+transformers==4.51.3
