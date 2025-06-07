@@ -11,18 +11,6 @@ import logging
 import openai
 openai.api_key=settings.OPENAI_KEY
 
-cv2_map = {
-    "cv2.FONT_HERSHEY_SIMPLEX": cv2.FONT_HERSHEY_SIMPLEX,
-    "cv2.FONT_HERSHEY_PLAIN": cv2.FONT_HERSHEY_PLAIN,
-    "cv2.FONT_HERSHEY_DUPLEX": cv2.FONT_HERSHEY_DUPLEX,
-    "cv2.FONT_HERSHEY_COMPLEX": cv2.FONT_HERSHEY_COMPLEX,
-    "cv2.FONT_HERSHEY_TRIPLEX": cv2.FONT_HERSHEY_TRIPLEX,
-    "cv2.FONT_HERSHEY_COMPLEX_SMALL": cv2.FONT_HERSHEY_COMPLEX_SMALL,
-    "cv2.FONT_HERSHEY_SCRIPT_SIMPLEX": cv2.FONT_HERSHEY_SCRIPT_SIMPLEX,
-    "cv2.FONT_HERSHEY_SCRIPT_COMPLEX": cv2.FONT_HERSHEY_SCRIPT_COMPLEX,
-    "cv2.FONT_ITALIC": cv2.FONT_ITALIC
-}
-
 # -------- Mode 1: Best Frame from Clip -------- #
 def select_best_frame(video_path: str):
     predictions = predict_actions(video_path)
@@ -79,6 +67,19 @@ def generate_from_sketch(sketch_path: str, prompt: str, output_path: str):
 
 # -------- Text + Icon Overlays -------- #
 def add_text_and_icon(image_path: str, text_options: dict = None, icon_options: dict = None):
+
+    cv2_map = {
+        "cv2.FONT_HERSHEY_SIMPLEX": cv2.FONT_HERSHEY_SIMPLEX,
+        "cv2.FONT_HERSHEY_PLAIN": cv2.FONT_HERSHEY_PLAIN,
+        "cv2.FONT_HERSHEY_DUPLEX": cv2.FONT_HERSHEY_DUPLEX,
+        "cv2.FONT_HERSHEY_COMPLEX": cv2.FONT_HERSHEY_COMPLEX,
+        "cv2.FONT_HERSHEY_TRIPLEX": cv2.FONT_HERSHEY_TRIPLEX,
+        "cv2.FONT_HERSHEY_COMPLEX_SMALL": cv2.FONT_HERSHEY_COMPLEX_SMALL,
+        "cv2.FONT_HERSHEY_SCRIPT_SIMPLEX": cv2.FONT_HERSHEY_SCRIPT_SIMPLEX,
+        "cv2.FONT_HERSHEY_SCRIPT_COMPLEX": cv2.FONT_HERSHEY_SCRIPT_COMPLEX,
+        "cv2.FONT_ITALIC": cv2.FONT_ITALIC
+    }
+
     image = cv2.imread(image_path)
     if image is None:
         return None

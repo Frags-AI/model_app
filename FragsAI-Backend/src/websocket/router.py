@@ -1,32 +1,26 @@
-from fastapi import APIRouter, WebSocket
+from fastapi import WebSocket, WebSocketDisconnect, APIRouter
+from celery.result import AsyncResult
+from celery_app.app import celery
 import asyncio
-import logging
-from celery_app.job_manager import manager
-
 router = APIRouter()
 
-@router.websocket("/status/{job_id}")
-async def websocket_status(websocket: WebSocket, job_id: str):
+@router.websocket("/ws/{task_id}")
+async def websocket_status(websocket: WebSocket, task_id: str):
     await websocket.accept()
-    await websocket.send_json({"message": "Connected to Server", "ok": True, "type": "connection"})
-    logging.info("Successfully connected to Client")
-
-    if not manager.exists(job_id):
-        await websocket.send_json({"message": "Invalid job ID", "ok": False, "type": "connection"})
-        logging.error("Invalid Job ID or Job has expired")
-        await websocket.close()
-        return
-    
-    await websocket.send_json({"message": "Your job is currently being processed, we will let you know when it has finished!", "ok": True, "type": "connection"})
-    logging.info("Model is currently processing video into clips")
-    while True:
-        await asyncio.sleep(2)
-        job = manager.get_job(job_id)
-        data = job.get_JSON()
-        data["type"] = "progress"
-        await websocket.send_json(data)
-        status = manager.get_job_status(job_id)
-        if status == "completed":
-            await websocket.send_json({"message": "Video has finished processing!", "ok": True, "type": "connection"})
-            break
-    await websocket.close()
+    try:
+        while True:
+            task_result = AsyncResult(task_id, app=celery)
+            if task_result.state == "PROGRESS":
+                await websocket.send_json({
+                    "state": task_result.state,
+                    "progress": task_result.info.get("progress")
+                })
+            elif task_result.state in ("SUCCESS", "FAILURE"):
+                await websocket.send_json({
+                    "state": task_result.state,
+                    "result": task_result.result
+                })
+                break
+            await asyncio.sleep(2.5)
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected: {task_id}")

@@ -1,5 +1,15 @@
 from fastapi import APIRouter
-from api import video, thumbnail,aspect_ratio,editing,subtitles,background,transcription,voiceover,virality_ranking
+from api import (
+    video, 
+    thumbnail,
+    aspect_ratio,
+    editing,
+    subtitles,
+    background,
+    transcription,
+    voiceover,
+    virality_ranking
+)
 
 router = APIRouter()
 

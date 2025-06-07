@@ -5,6 +5,7 @@ yolo.weights
 .env
 .env.local
 .env.production
+.env.docker
 FragsAI-Backend/media
 
 # Ignore image files

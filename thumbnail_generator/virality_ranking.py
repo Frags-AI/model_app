@@ -6,7 +6,7 @@ from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import subprocess
 from tqdm import tqdm
 import concurrent.futures
-from action_detection import extract_features, load_yolo_model, cfg_path, weights_path
+from action_detection import extract_features, load_yolo_model
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -29,9 +29,6 @@ EVENT_WEIGHTS = {
     "flawless_victory": 5.0, "strategic_baiting": 2.0, "team_kill": -1.0,
     "special_ability_ultimate": 2.5, "killstreak_5": 5.0, "final_blow": 3.3
 }
-
-# Load YOLO model once globally
-NET, OUTPUT_LAYERS, LABELS = load_yolo_model(weights_path, cfg_path)
 
 # Extract frames (used elsewhere)
 def extract_frames(video_path):
@@ -61,6 +58,8 @@ def sentiment_analysis(text):
 # Predict Actions using YOLO
 
 def predict_actions(video_path):
+    yolo_model = load_yolo_model()
+    NET, OUTPUT_LAYERS, LABELS = yolo_model
     detections = extract_features(video_path, NET, OUTPUT_LAYERS, LABELS)
     event_count = {}
 

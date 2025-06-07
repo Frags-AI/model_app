@@ -26,5 +26,11 @@ class YOLOModel():
     
     def get_details(self):
         return self.net, self.output_layers, self.class_labels
-
-yolo_model = YOLOModel(settings.WEIGHT_PATH, settings.CFG_PATH, DEFAULT_CLASS_LABELS)
+    
+    def destroy(self):
+        del self.net
+        del self.output_layers
+        del self.class_labels
+    
+def load_yolo_model():
+    return YOLOModel(settings.WEIGHT_PATH, settings.CFG_PATH, DEFAULT_CLASS_LABELS)

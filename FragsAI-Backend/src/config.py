@@ -1,6 +1,5 @@
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
-from moviepy.config import change_settings
 import os
 
 load_dotenv()
@@ -17,11 +16,13 @@ class Settings(BaseSettings):
     CLIENT_URL: str = os.environ.get("CLIENT_URL")
     SIGNING_SECRET: str = os.environ.get("MODEL_SIGNING_SECRET")
     OPENAI_KEY: str = os.environ.get("OPENAI_API_KEY")
-    SANDBOX_DEVELOPMENT_KEY: str = "uxkEreSYgnrPj4q4hxVuJYqA0jwDoQ3SjIvwiEEV"
-    SANDBOX_PRODUCTION_KEY: str = "xB9YvCM80apOAjKyfAJCwHKYsc0XuQq4dKpDv3Th"
+    SANDBOX_API_KEY: str = os.environ.get("SANDBOX_API_KEY")
     CFG_PATH: str | None = os.environ.get("CFG_PATH", os.path.abspath("models/pretrained/yolov3.cfg"))
     WEIGHT_PATH: str | None = os.environ.get("WEIGHT_PATH", os.path.abspath("models/pretrained/yolo.weights"))
-    IMAGE_MAGICK_PATH: str = os.environ.get("MAGICK_PATH") # Path to magick.exe file
+    ELEVENLABS_API_KEY: str = os.environ.get("ELEVENLABS_API_KEY")
+    ELEVENLABS_URL: str = os.environ.get("ELEVENLABS_URL", "https://api.elevenlabs.io/v1/text-to-speech/cgSgspJ2msm6clMCkdW9")
+    STABLE_DIFFUSION_KEY: str = os.environ.get("STABLE_DIFFUSION_KEY")
+    STABLE_DIFFUSION_URL: str = os.environ.get("STABLE_DIFFUSION_URL", "https://api.stablediffusionapi.com/v1/generate")
 
     # Add subdirectories here
     def generate_subdirectories(self):
@@ -35,10 +36,5 @@ class Settings(BaseSettings):
             os.makedirs(upload_folder_path, exist_ok=True)
             os.makedirs(download_folder_path, exist_ok=True)
 
-    # Make sure to install magick.exe
-    def set_image_magick_path(self):
-        change_settings({"IMAGEMAGICK_BINARY": self.IMAGE_MAGICK_PATH})
-
 settings = Settings()
 settings.generate_subdirectories()
-settings.set_image_magick_path()

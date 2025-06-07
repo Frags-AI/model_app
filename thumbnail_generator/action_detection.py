@@ -8,10 +8,6 @@ from tqdm import tqdm
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 import os
-BASE_DIR = os.path.dirname(__file__)
-cfg_path = os.path.join(BASE_DIR, "models/yolov3.cfg")
-weights_path = os.path.join(BASE_DIR, "models/yolo.weights")
-
 
 DEFAULT_CLASS_LABELS = [
     "gunshot", "grenade_throw", "knife_attack", "multiple_kills", "reload",

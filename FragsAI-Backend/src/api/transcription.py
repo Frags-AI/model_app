@@ -2,13 +2,13 @@ from fastapi import APIRouter, UploadFile, File
 from fastapi.responses import JSONResponse
 import os
 from config import settings
-from services.transcription import transcribe_video
+from core.transcription import transcribe_video
 
 router = APIRouter()
 
 @router.post("/transcribe/")
 def transcribe(file: UploadFile = File(...)):
-    video_path = os.path.join(settings.upload_folder, file.filename)
+    video_path = os.path.join(settings.UPLOAD_FOLDER, file.filename)
     
     with open(video_path, "wb") as f:
         f.write(file.read())

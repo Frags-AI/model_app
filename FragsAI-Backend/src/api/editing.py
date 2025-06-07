@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from services.editing import edit_video
+from core.editing import edit_video
 
 router=APIRouter()
 

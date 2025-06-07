@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import logging
 from tqdm import tqdm
-from models.yolo_model import yolo_model
+from models.yolo_model import load_yolo_model
 
 # Please specify this in the .env.local for config, this will default to None and expect to find it inside of models
 
@@ -25,6 +25,7 @@ INPUT_SIZE = (416, 416)
 
 # Extract features from video
 def extract_features(video_path: str, frame_rate=5):
+    yolo_model = load_yolo_model()
     net, output_layers, labels = yolo_model.get_details()
     cap = cv2.VideoCapture(video_path)
 
@@ -78,5 +79,5 @@ def extract_features(video_path: str, frame_rate=5):
 
     if not actions_detected:
         logging.warning("No actions detected in the video.")
-
+    yolo_model.destroy()
     return actions_detected

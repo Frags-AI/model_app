@@ -1,16 +1,16 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import APIRouter, UploadFile, File
 from fastapi.responses import JSONResponse
 import shutil
 import os
 from uuid import uuid4
-from virality_ranking import rank_clips, get_video_clips_from_folder, VIRALITY_FOLDER_PATH
+from core.virality_ranking import rank_clips, get_video_clips_from_folder, VIRALITY_FOLDER_PATH
 
-app = FastAPI()
+router = APIRouter()
 
 UPLOAD_DIR = "uploaded_videos"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-@app.post("/rank-virality")
+@router.post("/rank-virality")
 async def rank_virality(file: UploadFile = File(...)):
     try:
         #save uploaded file

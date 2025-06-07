@@ -1,8 +1,8 @@
 import requests
 from config import settings
 
-api_key = settings.elevenlabs_api_key
-url = settings.elevenlabs_url
+api_key = settings.ELEVENLABS_API_KEY
+url = settings.ELEVENLABS_URL
 
 def generate_voiceover(text, voice="Jessica", output_path="voiceover.mp3"):
     """

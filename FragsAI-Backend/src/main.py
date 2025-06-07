@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from config import settings
+from celery_app.app import celery
 from api.router import router as api_router
 from websocket.router import router as ws_router
 

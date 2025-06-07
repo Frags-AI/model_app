@@ -23,6 +23,8 @@
 **/bin
 **/charts
 **/docker-compose*
+**/*.env.example
+**/*.env.production
 **/compose.y*ml
 **/Dockerfile*
 **/node_modules
@@ -30,6 +32,7 @@
 **/obj
 **/secrets.dev.yaml
 **/values.dev.yaml
+**/policy.xml
 LICENSE
 README.md
 
@@ -40,7 +43,7 @@ __pycache__/
 *.DS_Store
 *.log
 media/
-.env
+*.env
 .venv/
 .idea/
 *.egg-info/

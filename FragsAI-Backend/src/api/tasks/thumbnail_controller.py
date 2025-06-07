@@ -1,4 +1,4 @@
-from services.thumbnail import (
+from core.thumbnail import (
     select_best_frame, generate_thumbnail_background,
     generate_dalle3_thumbnail, generate_from_sketch,
     generate_thumbnail_overlays, add_text_and_icon
@@ -6,6 +6,7 @@ from services.thumbnail import (
 from config import settings
 from fastapi import UploadFile
 import os
+from celery_app.app import celery
 
 
 """
@@ -17,7 +18,8 @@ Mode 3: Generate thumbnail with Sketch + Prompt
 os.makedirs(os.path.join(settings.UPLOAD_FOLDER, "thumbnails"), exist_ok=True)
 os.makedirs(os.path.join(settings.DOWNLOAD_FOLDER, "thumbnails"), exist_ok=True)
 
-def thumbnail_generator(mode: int, file: UploadFile = None, prompt: str = None, text: str = None):
+@celery.task(bind=True)
+def thumbnail_generator(self, mode: int, file: UploadFile = None, prompt: str = None, text: str = None):
     thumbnail_path = None
 
     if mode == 1:

@@ -1,8 +1,8 @@
 import requests
 from config import settings
 
-api_key = settings.stable_diffusion_key
-url = settings.stable_diffusion_url
+api_key = settings.STABLE_DIFFUSION_KEY
+url = settings.STABLE_DIFFUSION_URL
 
 def generate_background(prompt, output_path="background_image.png", width=1024, height=576):
     """

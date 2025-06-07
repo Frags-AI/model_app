@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form
 from fastapi.responses import JSONResponse
-from .services.thumbnail_controller import thumbnail_generator
+from .tasks.thumbnail_controller import thumbnail_generator
 from typing import Annotated
 
 router = APIRouter()
@@ -11,5 +11,5 @@ def generate_thumbnail(mode: Annotated[int, Form(...)], file: Annotated[UploadFi
     if None == file == prompt == text:
         return JSONResponse({"error": "Please pass in parameters"})
 
-    path = thumbnail_generator(mode, file, prompt, text)
-    return JSONResponse({"path": path})
+    task = thumbnail_generator(mode, file, prompt, text)
+    return JSONResponse({"task_id": task.id})

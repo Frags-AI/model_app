@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 import os
 from config import settings
-from services.voiceover import generate_voiceover
+from core.voiceover import generate_voiceover
 
 router = APIRouter()
 

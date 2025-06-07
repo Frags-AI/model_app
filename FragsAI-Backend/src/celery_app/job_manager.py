@@ -2,10 +2,11 @@ from typing import List, Optional
 from celery.result import AsyncResult
 from celery_app.app import celery
 
+# Statuses -> PENDING, STARTED, SUCCESS, FAILURE, RETRY, REVOKED
 class Job:
     def __init__(self, task_id: str):
         self.task_id = task_id
-        self.status = 'queued'
+        self.status = 'PENDING'
         self.video_progress = 0
         self.motion_progress = 0
         self._result = AsyncResult(task_id, app=celery)
@@ -14,21 +15,19 @@ class Job:
         return self.task_id
 
     def get_status(self) -> str:
-        return self._result.state or self.status
+        return self.status
 
     def set_status(self, status: str):
         self.status = status
 
     def get_video_progress(self) -> int:
-        info = self._result.info
-        return info.get('clip_progress', self.video_progress)
+        return self.video_progress
 
     def set_video_progress(self, progress: int):
         self.video_progress = progress
 
     def get_frame_progress(self) -> int:
-        info = self._result.info
-        return info.get('motion_progress', self.motion_progress)
+        return self.motion_progress
 
     def set_motion_progress(self, progress: int):
         self.motion_progress = progress
@@ -44,7 +43,7 @@ class JobManager:
         self.jobs: List[Job] = []
 
     def is_empty(self) -> bool:
-        return not self.jobs
+        return len(self.jobs) == 0
 
     def exists(self, job_id: str) -> bool:
         return any(job.get_id() == job_id for job in self.jobs)
