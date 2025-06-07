@@ -1,106 +1,171 @@
 import os
-from moviepy.editor import VideoFileClip
-import librosa
 import numpy as np
-import moviepy.editor as mp
-from pyAudioAnalysis import audioTrainTest as aT
-from pyAudioAnalysis import MidTermFeatures as mtf
+import librosa
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from tqdm import tqdm
+import subprocess
 
-# Path to the video file
-video_path = "input_video.mp4"
-output_dir = "output_clips"
+# --- Step 1: Extract audio from video ---
+from moviepy.editor import VideoFileClip
+import subprocess
 
-# Step 1: Extract audio from video
-def extract_audio(video_path, output_audio_path):
-    video = VideoFileClip(video_path)
-    audio = video.audio
-    audio.write_audiofile(output_audio_path)
+def extract_audio_ffmpeg(video_path, audio_path="extracted_audio.wav"):
+    command = [
+        "ffmpeg",
+        "-y",  # overwrite output file if exists
+        "-i", video_path,
+        "-vn",  # no video
+        "-acodec", "pcm_s16le",  # WAV PCM 16 bit
+        "-ar", "22050",  # sampling rate to match librosa default (optional)
+        audio_path
+    ]
+    subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return audio_path
 
-# Step 2: Analyze audio for gunshot sounds
-def analyze_audio(audio_path):
-    y, sr = librosa.load(audio_path, sr=None)
-    S = np.abs(librosa.stft(y))
-    rms = librosa.feature.rms(S=S).flatten()
+
+# --- Step 2: Analyze audio for gunshot sounds ---
+def detect_gunshots(audio_path, sr=22050, threshold=0.3):
+    print("Loading audio for gunshot detection...")
+    y, sr = librosa.load(audio_path, sr=sr)
+    hop_length = 512
+    frame_length = 1024
+    rms = librosa.feature.rms(y=y, frame_length=frame_length, hop_length=hop_length)[0]
+    times = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=hop_length, n_fft=frame_length)
+
+    gunshot_times = []
+    in_shot = False
+    start_time = 0
+
+    print("Detecting gunshots in audio frames...")
+    for t, energy in tqdm(zip(times, rms), total=len(rms), mininterval=0.5, smoothing=0.1):
+        if energy > threshold and not in_shot:
+            in_shot = True
+            start_time = t
+        elif energy <= threshold and in_shot:
+            in_shot = False
+            end_time = t
+            gunshot_times.append((start_time, end_time))
+
+    # Merge very close intervals
+    merged = []
+    for interval in gunshot_times:
+        if not merged:
+            merged.append(interval)
+        else:
+            prev_start, prev_end = merged[-1]
+            if interval[0] - prev_end < 0.5:
+                merged[-1] = (prev_start, interval[1])
+            else:
+                merged.append(interval)
+    return merged
+
+# --- Step 3: Analyze laughter using pre-trained model (placeholder) ---
+def detect_laughter(audio_path):
+    print("Loading audio for laughter detection...")
+    y, sr = librosa.load(audio_path, sr=22050)
+    rms = librosa.feature.rms(y=y)[0]
     times = librosa.frames_to_time(np.arange(len(rms)), sr=sr)
-    
-    # Gunshot detection: simple thresholding
-    threshold = 0.2
-    min_duration_between_gunshots = 1
-    
-    gunshot_events = times[rms > threshold]
-    
-    filtered_events = []
-    last_event = -min_duration_between_gunshots
-    for event in gunshot_events:
-        if event - last_event >= min_duration_between_gunshots:
-            filtered_events.append(event)
-            last_event = event
-    
-    return filtered_events
 
-# Step 3: Analyze audio for laughter (funny moments)
-def analyze_laughter(audio_path):
-    # Extract mid-term features and save them to a temporary file
-    mt_feats, st_feats, _ = mtf.mid_feature_extraction_to_file(audio_path, "temp_features", 1.0, 1.0, 0.05, 0.05, True, False)
-    
-    # Load pre-trained SVM laughter model
-    model_path = "laughterSVM"
-    class_names, mt_win, mt_step, st_win, st_step, classifier, mean, std, class_names = aT.load_model(model_path)
-    
-    # Predict laughter segments
-    [Result, P, classNames] = aT.file_classification(audio_path, model_path, "svm", False)
-    
-    # Threshold based on the laughter probability
-    laughter_threshold = 0.5
-    laughter_events = []
-    for i in range(len(Result)):
-        if Result[i] == 1 and P[i][1] > laughter_threshold:
-            laughter_events.append(i * mt_step)
-    
-    return laughter_events
+    laughter_times = []
+    in_laugh = False
+    start_time = 0
+    threshold = 0.05
 
-# Step 4: Segment video based on audio analysis
-def segment_video(video_path, events, segment_duration=5):
-    video = VideoFileClip(video_path)
-    clips = []
-    
-    for event in events:
-        start_time = max(0, event - segment_duration / 2)
-        end_time = min(video.duration, event + segment_duration / 2)
-        clip = video.subclip(start_time, end_time)
-        clips.append(clip)
-    
-    return clips
+    print("Detecting laughter in audio frames...")
+    for t, energy in tqdm(zip(times, rms), total=len(rms), mininterval=0.5, smoothing=0.1):
+        if energy > threshold and not in_laugh:
+            in_laugh = True
+            start_time = t
+        elif energy <= threshold and in_laugh:
+            in_laugh = False
+            end_time = t
+            laughter_times.append((start_time, end_time))
 
-# Step 5: Save video clips
-def save_clips(clips, output_dir):
+    merged = []
+    for interval in laughter_times:
+        if not merged:
+            merged.append(interval)
+        else:
+            prev_start, prev_end = merged[-1]
+            if interval[0] - prev_end < 0.5:
+                merged[-1] = (prev_start, interval[1])
+            else:
+                merged.append(interval)
+    return merged
+
+# --- Step 4: Merge segments from gunshots and laughs ---
+def merge_segments(gunshots, laughs):
+    segments = gunshots + laughs
+    segments.sort(key=lambda x: x[0])
+
+    if not segments:
+        return []
+
+    merged = [segments[0]]
+    for current in segments[1:]:
+        last = merged[-1]
+        if current[0] <= last[1] + 0.5:
+            merged[-1] = (last[0], max(last[1], current[1]))
+        else:
+            merged.append(current)
+    return merged
+
+# --- Step 5: Fast save clips using ffmpeg with stream copy in parallel ---
+def ffmpeg_extract_clip(input_path, start, end, output_path):
+    duration = end - start
+    cmd = [
+        "ffmpeg",
+        "-ss", str(start),
+        "-i", input_path,
+        "-t", str(duration),
+        "-c", "copy",               # Stream copy, no re-encode
+        "-avoid_negative_ts", "make_zero",
+        "-y",                      # Overwrite output file
+        output_path
+    ]
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return output_path
+
+def save_clips_fast_parallel(video_path, segments, output_dir="clips", max_workers=4):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    
-    for i, clip in enumerate(clips):
-        output_path = os.path.join(output_dir, f"clip_{i + 1}.mp4")
-        clip.write_videofile(output_path)
 
-def main():
-    audio_path = "extracted_audio.wav"
-    
-    # Extract audio
-    extract_audio(video_path, audio_path)
-    
-    # Analyze audio for gunshot sounds
-    gunshot_events = analyze_audio(audio_path)
-    
-    # Analyze audio for laughter
-    laughter_events = analyze_laughter(audio_path)
-    
-    # Combine events
-    events = sorted(set(gunshot_events + laughter_events))
-    
-    # Segment video
-    clips = segment_video(video_path, events)
-    
-    # Save clips
-    save_clips(clips, output_dir)
+    print(f"Saving {len(segments)} clips fast with ffmpeg (no re-encoding) in parallel...")
+
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = []
+        for idx, (start, end) in enumerate(segments):
+            output_path = os.path.join(output_dir, f"clip_{idx+1}_{start:.2f}_{end:.2f}.mp4")
+            futures.append(executor.submit(ffmpeg_extract_clip, video_path, start, end, output_path))
+
+        for future in tqdm(as_completed(futures), total=len(futures)):
+            clip_path = future.result()
+            print(f"Saved clip: {clip_path}")
+
+# --- Main pipeline ---
+def main_pipeline(video_path):
+    print("Step 1: Extracting audio...")
+    audio_path = extract_audio_ffmpeg(video_path)  # use ffmpeg version here
+
+    # rest of pipeline unchanged ...
+
+    print("Step 2: Detecting gunshots...")
+    gunshots = detect_gunshots(audio_path)
+    print(f"Gunshot segments: {gunshots}")
+
+    print("Step 3: Detecting laughter...")
+    laughs = detect_laughter(audio_path)
+    print(f"Laughter segments: {laughs}")
+
+    print("Step 4: Merging segments...")
+    segments = merge_segments(gunshots, laughs)
+    print(f"Merged segments: {segments}")
+
+    print("Step 5: Saving video clips...")
+    save_clips_fast_parallel(video_path, segments, max_workers=8)  # Adjust max_workers based on your CPU cores
+
+    print("Processing completed.")
 
 if __name__ == "__main__":
-    main()
+    video_file = "9.mp4"  # Replace with your actual file path
+    main_pipeline(video_file)
