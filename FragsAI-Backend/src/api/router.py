@@ -8,7 +8,8 @@ from api import (
     background,
     transcription,
     voiceover,
-    virality_ranking
+    virality_ranking,
+    clip_anything
 )
 
 router = APIRouter()

@@ -2,9 +2,10 @@ from fastapi import WebSocket, WebSocketDisconnect, APIRouter
 from celery.result import AsyncResult
 from celery_app.app import celery
 import asyncio
+import logging
 router = APIRouter()
 
-@router.websocket("/ws/{task_id}")
+@router.websocket("/status/{task_id}")
 async def websocket_status(websocket: WebSocket, task_id: str):
     await websocket.accept()
     try:
@@ -23,4 +24,4 @@ async def websocket_status(websocket: WebSocket, task_id: str):
                 break
             await asyncio.sleep(2.5)
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected: {task_id}")
+        logging.info(f"WebSocket disconnected: {task_id}")

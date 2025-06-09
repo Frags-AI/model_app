@@ -1,4 +1,5 @@
 yolo.weights
+*.h5
 桴浵湢楡彬敧敮慲潴⽲潭敤獬礯汯⹯敷杩瑨⁳਍琢畨扭慮汩束湥牥瑡牯洯摯汥⽳潹潬眮楥桧獴•਍桴浵湢楡彬敧敮慲潴⽲潭敤獬礯汯⹯敷杩瑨⁳਍
 
 .venv/
@@ -7,6 +8,7 @@ yolo.weights
 .env.production
 .env.docker
 FragsAI-Backend/media
+
 
 # Ignore image files
 *.png
