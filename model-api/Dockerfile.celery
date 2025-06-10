@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1.4
+
+FROM nvidia/cuda:12.9.0-cudnn-devel-ubuntu24.04 AS base
+
+# Environment setup
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/.venv/bin:$PATH"
+
+# Install Python and system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 python3.12-venv python3-pip \
+    ffmpeg libsm6 libxext6 imagemagick libmagick++-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Fix ImageMagick security policy to allow image processing
+RUN sed -i 's/<policy domain="path" rights="none" pattern="@\*"/<!-- & -->/' /etc/ImageMagick-6/policy.xml || true
+
+# Create symbolic links
+RUN ln -s /usr/bin/python3.12 /usr/local/bin/python && \
+    ln -s /usr/bin/pip3 /usr/local/bin/pip
+
+# Set up virtual environment
+RUN python -m venv /.venv
+
+WORKDIR /app
+
+# Pre-install dependencies
+COPY requirements.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy project files
+COPY . .
+
+# Final settings
+WORKDIR /app/src
+ENV PYTHONPATH="/app/src"
+
+CMD ["celery", "-A", "celery_app.app.celery", "worker", "--loglevel=INFO"]

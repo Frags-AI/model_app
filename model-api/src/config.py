@@ -7,8 +7,9 @@ load_dotenv()
 class Settings(BaseSettings):
     CELERY_BROKER_URL: str = os.environ.get("CELERY_BROKER")
     CELERY_RESULT_BACKEND: str = os.environ.get("CELERY_BACKEND")
-    UPLOAD_FOLDER: str = "media/uploads"
-    DOWNLOAD_FOLDER: str = "media/downloads"
+    UPLOAD_FOLDER: str = os.path.join("media", "uploads")
+    DOWNLOAD_FOLDER: str = os.path.join("media", "downloads")
+    FLORENCE_FOLDER: str = os.path.join("media", "florence")
     ALLOWED_EXTENSIONS: list[str] = ["mp4", "mov", "webm", "avi", "mkv"]
     ENVIRONMENT: str = os.environ.get("ENVIRONMENT")
     HOST_NAME: str = os.environ.get("HOST_NAME")
@@ -32,8 +33,10 @@ class Settings(BaseSettings):
     def generate_subdirectories(self):
         os.makedirs(self.UPLOAD_FOLDER, exist_ok=True)
         os.makedirs(self.DOWNLOAD_FOLDER, exist_ok=True)
+        os.makedirs(self.FLORENCE_FOLDER, exist_ok=True)
         subdirectories = ["videos", "thumbnails", "audios", "clips", "frames"]
 
+        # Generate media subdirectories
         for subdirectory in subdirectories:
             upload_folder_path = os.path.join(self.UPLOAD_FOLDER, subdirectory)
             download_folder_path = os.path.join(self.DOWNLOAD_FOLDER, subdirectory)

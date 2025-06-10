@@ -1,9 +1,9 @@
-# services/clip_anything_service.py
-
-from services import clip_anything as clip
+from core import clip_anything as clip
 import supervision as sv
 import os
+from celery_app.app import celery
 
+@celery.task(bind=True)
 def process_video(video_path, user_text_input):
     video_frames_batches_dir = 'video_frames'
     video_name = os.path.splitext(os.path.basename(video_path))[0]

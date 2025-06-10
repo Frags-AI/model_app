@@ -15,26 +15,23 @@ from tqdm.auto import tqdm
 
 # Transformers and related deep learning tools
 # import flash_attn  # Flash attention support for transformer speedup
-import transformers
-from transformers import AutoModelForCausalLM, AutoProcessor  # Florence-2 model interface
-import timm.layers  # Vision transformer layers
 
 # PIL and visualization
-from PIL import Image, ImageDraw, ImageFont  # Image processing and drawing
+from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from pathlib import Path
 
 # Text processing
 import string
 from nltk.corpus import stopwords
-import nltk
 
 # Logging and warnings
-import math
 import logging
 import warnings
 warnings.filterwarnings('ignore')
+
+# Load model
+from models.florence import load_florence_model
 
 # Download stopwords if not already present
 # nltk.download('stopwords')
@@ -202,28 +199,8 @@ def fetch_frames_and_indices_from_batches(base_dir, video_path, batches=True):
     else:
         return [all_frames], [all_indices]
 
-# Load Florence-2 model for vision-language tasks
-# !mkdir -p my_models # Ceates folder/directory named 'my_models'
-# ! mkdir my_models/Florence_2  # and sub folder Florence_2 where florence2 models can be saved (e.g., Florence-2-large)
-florence_models_dir = 'my_models/Florence_2'
-model_id = 'microsoft/Florence-2-large'
 
-# Load model and processor with GPU acceleration
-model = AutoModelForCausalLM.from_pretrained(
-    model_id,
-    cache_dir=florence_models_dir,
-    device_map="cuda",
-    trust_remote_code=True,
-    torch_dtype='auto'
-).eval().cuda()
-
-processor = AutoProcessor.from_pretrained(
-    model_id,
-    cache_dir=florence_models_dir,
-    trust_remote_code=True
-)
-
-def run_florence2_inference(image, task_prompt, text_input=None):
+def run_florence2_inference(model, processor, image, task_prompt, text_input=None):
     """
     Runs multimodal inference on an image using the Florence-2 model.
     Supports both captioning and grounding depending on task prompt.
@@ -237,6 +214,7 @@ def run_florence2_inference(image, task_prompt, text_input=None):
         dict: A dictionary containing the results of the inference, where keys correspond to
               task prompts and values are the corresponding model outputs.
     """
+
     prompt = task_prompt if text_input is None else task_prompt + text_input
 
     inputs = processor(text=prompt, images=image, return_tensors="pt").to('cuda', torch.float16)
@@ -431,8 +409,6 @@ def draw_polygons(image, prediction, fill_mask=False):
 
             draw.text((_polygon[0] + 8, _polygon[1] + 2), label, fill=color)
 
-    display(image)
-
 def find_object_segments(video_path, frames_batches, frame_indices_batches, user_text_input,
                          detail_level='high', thresholds=np.array([85, 90, 95], dtype=np.float32),
                          plot_matching_frames=False):  
@@ -467,11 +443,14 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
     }
 
     segments = []
+    segment_visuals = []
     match_started = False
     current_detail_level = detail_level
     batch_num = 0
 
     progress_bar = tqdm(total=len(frames_batches), unit=" batches", desc=f'Running inference on {len(frames_batches)} batches of frames')
+    florence_model = load_florence_model()
+    model, processor = florence_model.get_details()
 
     for batch_frames_list, batch_indices_list in zip(frames_batches, frame_indices_batches):
         try:
@@ -479,7 +458,7 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
                 task_prompt = task_prompts[current_detail_level]
 
                 start_time = time.time()
-                results = run_florence2_inference(frame, task_prompt)
+                results = run_florence2_inference(model, processor, frame, task_prompt)
                 inference_time = time.time() - start_time
 
                 if current_detail_level == 'high' and inference_time > 1:
@@ -497,11 +476,11 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
                         start_index = index
                         start_frame = frame
                         match_started = True
-                        start_results = run_florence2_inference(start_frame, '<CAPTION_TO_PHRASE_GROUNDING>', user_text_input)
+                        start_results = run_florence2_inference(model, processor, start_frame, '<CAPTION_TO_PHRASE_GROUNDING>', user_text_input)
 
                     end_index = index
                     end_frame = frame
-                    end_results = run_florence2_inference(end_frame, '<CAPTION_TO_PHRASE_GROUNDING>', user_text_input)
+                    end_results = run_florence2_inference(model, processor, end_frame, '<CAPTION_TO_PHRASE_GROUNDING>', user_text_input)
 
                 elif match_started:
                     segments.append({
@@ -541,6 +520,7 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
         batch_num += 1
 
     progress_bar.close()
+    florence_model.destroy()
     print(f"Inference ended at frame no. {end_index}, batch {batch_num}")
     if plot_matching_frames:
       print(f'Start frame no. {start_index}')

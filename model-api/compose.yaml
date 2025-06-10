@@ -3,6 +3,9 @@ version: "3.9"
 services:
   redis:
     image: redis
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
 
   fastapi:
     build:
@@ -14,6 +17,7 @@ services:
       - redis
     env_file:
       - ".env"
+    restart: unless-stopped
 
   celery:
     build:
@@ -23,3 +27,14 @@ services:
       - redis
     env_file:
       - ".env"
+    restart: unless-stopped
+    # For GPU support
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    runtime: nvidia
+
+volumes:
+  redis_data:
