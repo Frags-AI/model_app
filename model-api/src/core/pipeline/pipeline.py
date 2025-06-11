@@ -20,6 +20,7 @@ IMAGE_HEIGHT, IMAGE_WIDTH = 64, 64
 TIMESTEPS = 10
 NO_OF_CHANNELS = 3
 CLASS_CATEGORIES_LIST = ["Nunchucks", "Punch"] # Edit as per your model
+NUM_CLASSES = len(CLASS_CATEGORIES_LIST)
 
 # ----------- 1. PREPROCESSING -----------------
 def preprocess_video(video_path, tmp_dir=os.path.join(settings.DOWNLOAD_FOLDER, "frames")):
@@ -66,7 +67,7 @@ def sliding_window_predict(video_path, model_path=MODEL_PATH, window=TIMESTEPS, 
         preds = model.predict(input_clip)
         pred_class_idx = np.argmax(preds)
         pred_score = float(np.max(preds))
-        pred_label = CLASS_CATEGORIES_LIST[pred_class_idx]
+        pred_label = CLASS_CATEGORIES_LIST[pred_class_idx] if 0 <= pred_class_idx < NUM_CLASSES else None
 
         if pred_score >= threshold:
             start_sec = i / fps
@@ -150,10 +151,10 @@ def main_pipeline(video_path, output_folder="clips", progress_callback=None):
     if progress_callback: progress_callback("Detecting shot boundaries", 45)
     shot_times = shot_boundaries(video_path)
 
-    if progress_callback: progress_callback("Segmenting clips", 60)
+    if progress_callback: progress_callback("Segmenting clips", 80)
     segments = segment_clips(action_segs, audio_segs, loudest_times, shot_times, clip_length=8)
 
-    if progress_callback: progress_callback("Ranking virality", 80)
+    if progress_callback: progress_callback("Ranking virality", 85)
     ranked = rank_virality(segments, action_segs, audio_segs)
 
     if progress_callback: progress_callback("Saving top 20 clips", 95)

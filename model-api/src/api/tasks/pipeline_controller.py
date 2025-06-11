@@ -10,15 +10,15 @@ from clients.aws import s3_service
 @celery.task(bind=True)
 def create_video_pipeline(self, s3_key: str, filename: str):
     
-    def update_progress(stage: str, progress: int):
-        self.update_state(state="PROGRESS", meta={"stage": stage, "progress": progress})
+    def update_progress(stage: str, progress: int, state: str = "PROGRESS"):
+        self.update_state(state=state, meta={"stage": stage, "progress": progress, "type": state})
 
     input_path = os.path.join(settings.UPLOAD_FOLDER, "videos", filename)
     s3_service.download_file(s3_key, input_path)
     output_path = os.path.join(settings.DOWNLOAD_FOLDER, "clips")
 
     output_folder = main_pipeline(input_path, output_path, update_progress)
-    self.update_state(state="SUCCESS", meta={"stage": "Finalizing Changes", "progress": 100})
+    self.update_state(state="SUCCESS", meta={"stage": "Finalizing Changes", "progress": 100, "type": "COMPLETE"})
 
     url = f"{settings.API_URL}/api/model/project"
     data = { "task_id": self.request.id, "status": "SUCCESS" }
