@@ -39,10 +39,6 @@ warnings.filterwarnings('ignore')
 # Download stopwords if not already present
 # nltk.download('stopwords')
 
-# Check if stopwords are already present before downloading
-if not 'stopwords' in nltk.data.find('corpora/stopwords.zip'):
-    nltk.download('stopwords')
-
 # Configure logging to track progress and errors
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -207,7 +203,8 @@ def fetch_frames_and_indices_from_batches(base_dir, video_path, batches=True):
         return [all_frames], [all_indices]
 
 # Load Florence-2 model for vision-language tasks
-# ! mkdir my_models/Florence_2 # Ceates folder/directory named 'my_models' and sub folder Florence_2 where florence2 models can be saved (e.g., Florence-2-large)
+# !mkdir -p my_models # Ceates folder/directory named 'my_models'
+# ! mkdir my_models/Florence_2  # and sub folder Florence_2 where florence2 models can be saved (e.g., Florence-2-large)
 florence_models_dir = 'my_models/Florence_2'
 model_id = 'microsoft/Florence-2-large'
 
@@ -296,40 +293,104 @@ def compare_texts(user_text_input, caption_text_input):
                Returns 0 if no matches are found.
     """
     # Clean and tokenize both inputs
-    user_words = clean_text(user_text_input) 
+    user_words = clean_text(user_text_input)
     caption_words = clean_text(caption_text_input)
 
-    # Find number of matched words
-    matched_words = user_words.intersection(caption_words) # Find matching/common words
-    matched_words = list(matched_words)
-    match_count = len(matched_words) # Total no.of matching/common words
     total_user_words = len(user_words) # Total user tokens/words
     total_caption_words = len(caption_words) # Total caption tokens/words
 
+    # Find number of matched words
+    # matched_words =  user_words.intersection(caption_words) # Find matching/common words
+    matched_words =  user_words.intersection(caption_words) if total_user_words > total_caption_words else caption_words.intersection(user_words) # Find matching/common words
+    matched_words = list(matched_words)
+    match_count = len(matched_words) # Total no.of matching/common words
+
     # Calculate match percentage
     if total_user_words > 0 and total_user_words > total_caption_words:
-      match_percent = (match_count / total_caption_words) * 100 
+      match_percent = (match_count / total_caption_words) * 100
     elif total_caption_words > 0 and total_caption_words > total_user_words:
       match_percent = (match_count / total_user_words) * 100
+    elif total_caption_words > 0 and total_user_words == total_caption_words:   
+      match_percent = (match_count / total_user_words) * 100        
     else:
       match_percent = 0
+    match_percent = round(match_percent,2)  
 
     # Print result if there’s at least one match
     # if match_count > 0:
     #   if total_user_words < total_caption_words:
-    #     print(f"Matched {match_count} user words out of {total_user_words} caption words ({match_percent:.2f}%)")
+    #     print(f"Matched {match_count} common words out of {total_user_words} user words ({match_percent:.2f}%)")
     #   elif total_user_words > total_caption_words:
-    #     print(f"Matched {match_count} caption words out of {total_caption_words} user words ({match_percent:.2f}%)")
+    #     print(f"Matched {match_count} common words out of {total_caption_words} caption words ({match_percent:.2f}%)")
     #   # print(f"caption text input: {caption_text_input}")
     #   # print(f"user prompt: {user_text_input}")
     #   print(f"Caption tokens: {sorted(caption_words)}")
     #   print(f"User tokens: {sorted(user_words)}")
     #   print(f"Matched words: {sorted(matched_words)}")
-      
+
     # else:
     #   print('Zero matched words')
 
     return match_percent
+
+def get_suffix(count):
+    """
+    Returns the appropriate suffix ('st', 'nd', 'rd', or 'th') for a given integer based on its last digit.
+
+    Args:
+        count (int): The integer value for which the suffix is to be determined.
+    Returns:
+        str: The integer with the correct suffix (e.g., '1st', '2nd', '3rd', '4th').
+    Example:
+        get_suffix(1)  # Output: '1st'
+        get_suffix(22) # Output: '22nd'
+    """
+    # Handle the exceptions for 11, 12, 13 (they always get 'th')
+    if 11 <= count % 100 <= 13:
+        return f"{count}th"
+    
+    # For 1, 2, 3, append 'st', 'nd', 'rd' respectively
+    if count % 10 == 1:
+        return f"{count}st"
+    elif count % 10 == 2:
+        return f"{count}nd"
+    elif count % 10 == 3:
+        return f"{count}rd"
+    
+    # For other numbers, append 'th'
+    return f"{count}th"  
+
+def get_timestamp_by_index(video_path, target_index):
+    """
+    Returns timestamp (in seconds) for a specific frame index.
+
+    Args:
+        video_path (str): Path to the video file.
+        target_index (int): Frame index to fetch the timestamp for.
+
+    Returns:
+        float: Timestamp in seconds, or None if the index is invalid.
+    """
+    cap = cv2.VideoCapture(video_path)
+    frame_num = 0
+
+    logging.info(f"Extracting timestamp for frame {target_index}...")
+
+    while cap.isOpened():
+        frame_exists, _ = cap.read()
+        if not frame_exists:
+            break
+
+        if frame_num == target_index:
+            timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
+            cap.release()
+            return round(timestamp_ms / 1000.0, 3)  # Convert to seconds with 3 decimals
+
+        frame_num += 1
+
+    cap.release()
+    logging.warning(f"Frame index {target_index} not found in video.")
+    return None
 
 def plot_bbox(image, data):
     """
@@ -404,9 +465,7 @@ def draw_polygons(image, prediction, fill_mask=False):
 
     display(image)
 
-# def find_object_segments_v3(video_path, frames_batches, frame_indices_batches, user_text_input,
-#                          detail_level='high', thresholds=np.array([85, 90, 95], dtype=np.float32),
-#                          plot_matching_frames=False, batch_size=5):
+# version 1
 def find_object_segments(video_path, frames_batches, frame_indices_batches, user_text_input,
                          detail_level='high', thresholds=np.array([85, 90, 95], dtype=np.float32),
                          plot_matching_frames=False):  
@@ -441,8 +500,8 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
     }
 
     segments = []
-    segment_visuals = []
     match_started = False
+    match_seg_count = 0                         
     current_detail_level = detail_level
     batch_num = 0
 
@@ -469,9 +528,11 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
 
                 if match_percent is not None and match_percent >= thresholds_dict[current_detail_level]:
                     if not match_started:
+                        print(f"\n {get_suffix(match_seg_count)} Match started")
+                        match_started = True
+                        match_seg_count += 1
                         start_index = index
                         start_frame = frame
-                        match_started = True
                         start_results = run_florence2_inference(start_frame, '<CAPTION_TO_PHRASE_GROUNDING>', user_text_input)
 
                     end_index = index
@@ -483,46 +544,20 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
                         'start': get_timestamp_by_index(video_path, start_index),
                         'end': get_timestamp_by_index(video_path, end_index)
                     })
-
-                    segment_visuals.append({
-                        'start_frame': start_frame,
-                        'end_frame': end_frame,
-                        'start_results': start_results,
-                        'end_results': end_results,
-                        'start_index': start_index,
-                        'end_index': end_index
-                    })
-                    print(f" First matching segment found at frame no. {start_index} in btach no. {batch_num}\n Start: {segments[-1]['start']}, End: {segments[-1]['end']} | Start frame index: {start_index} End frame index: {end_index}")
+                    print(f" Ended")
+                    print(f"  {get_suffix(match_seg_count)} matching segment found at frame no. {start_index} in btach no. {batch_num}\n Start: {segments[-1]['start']}, End: {segments[-1]['end']} | Start frame index: {start_index} End frame index: {end_index}")
                     if plot_matching_frames:
-                      print(f'Start frame no. {start_index}')
+                      print(f' Start frame no. {start_index}')
                       plot_bbox(start_frame, start_results['<CAPTION_TO_PHRASE_GROUNDING>'])
-                      print(f'End frame no. {end_index}')
+                      print(f' End frame no. {end_index}')
                       plot_bbox(end_frame, end_results['<CAPTION_TO_PHRASE_GROUNDING>'])
-                      # for seg, vis in zip(segments, segment_visuals):
-                      #     plot_start_end_bbox_side_by_side(
-                      #         vis['start_frame'],
-                      #         vis['end_frame'],
-                      #         vis['start_index'],
-                      #         vis['end_index'],
-                      #         vis['start_results'],
-                      #         vis['end_results']
-                      #     )
+
                     match_started = False
-                    user_input = input(" Do you want to continue finding more segments? (yes/no): ")
+                    user_input = input("\n Do you want to continue finding more segments? (yes/no): ")
                     if user_input.lower() != 'yes':
                         progress_bar.update(len(batch_frames_list))
                         progress_bar.close()
                         print(f"Inference ended at frame no. {end_index}, batch {batch_num}")
-                        # if plot_matching_frames:
-                        #     for seg, vis in zip(segments, segment_visuals):
-                        #         plot_start_end_bbox_side_by_side(
-                        #             vis['start_frame'],
-                        #             vis['end_frame'],
-                        #             vis['start_index'],
-                        #             vis['end_index'],
-                        #             vis['start_results'],
-                        #             vis['end_results']
-                        #         )
 
                         return segments
 
@@ -530,60 +565,152 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
             print(f" Error during inference: {e}")
 
         finally:
-            progress_bar.update(len(batch_frames_list))
+            progress_bar.update(len(frames_batches))
         batch_num += 1
 
     progress_bar.close()
-    print(f"Inference ended at frame no. {end_index}, batch {batch_num}")
     if plot_matching_frames:
-      print(f'Start frame no. {start_index}')
+      print(f' Start frame no. {start_index}')
       plot_bbox(start_frame, start_results['<CAPTION_TO_PHRASE_GROUNDING>'])
-      print(f'End frame no. {end_index}')
+      print(f' End frame no. {end_index}')
       plot_bbox(end_frame, end_results['<CAPTION_TO_PHRASE_GROUNDING>'])
-        # for seg, vis in zip(segments, segment_visuals):
-        #     plot_start_end_bbox_side_by_side(
-        #         vis['start_frame'],
-        #         vis['end_frame'],
-        #         vis['start_index'],
-        #         vis['end_index'],
-        #         vis['start_results'],
-        #         vis['end_results']
-        #     )
-
+    print(f"Inference ended at frame no. {end_index}, batch {batch_num}") 
+                             
     return segments
 
-
-def get_timestamp_by_index(video_path, target_index):
+# version 2
+def find_object_segments_v2(video_path, user_text_input,
+                             detail_level='high', sample_interval=15,
+                             thresholds=np.array([85, 90, 95], dtype=np.float32),
+                             plot_matching_frames=False):
     """
-    Returns timestamp (in seconds) for a specific frame index.
+    Processes a video to identify segments (start and end timestamps of segments) where a given user's prompt/text matches the 
+    inferred captions from the video frames. The function segments the video based on matching text 
+    and returns the start and end timestamps for each matching segment.
 
     Args:
-        video_path (str): Path to the video file.
-        target_index (int): Frame index to fetch the timestamp for.
+        video_path (str): Path to the video file to be processed.
+        user_text_input (str): The user's input text or prompt to match against the captions of each frame.
+        detail_level (str, optional): Level of detail for inference ('high', 'medium', 'low'). Default is 'high'.
+        sample_interval (int, optional): The frame sampling interval. A higher value will result in fewer frames being processed (default is 15).
+        thresholds (np.ndarray, optional): Match percentage thresholds in the order:
+                                           [<CAPTION>, <DETAILED_CAPTION>, <MORE_DETAILED_CAPTION>]. Default is [85., 90., 95.].
+        plot_matching_frames (bool, optional): If True, displays bounding boxes on the start and end matching frames.
 
     Returns:
-        float: Timestamp in seconds, or None if the index is invalid.
+        list of dict: List of dictionaries with 'start', 'end' timestamps. Each dictionary contains:
+            - 'start': The timestamp (in seconds) of the start of the matching segment.
+            - 'end': The timestamp (in seconds) of the end of the matching segment.
     """
-    cap = cv2.VideoCapture(video_path)
-    frame_num = 0
 
-    logging.info(f"Extracting timestamp for frame {target_index}...")
+    thresholds = sorted(thresholds)
+    thresholds = {
+        'high': thresholds[-1].item(),
+        'medium': thresholds[1].item(),
+        'low': thresholds[0].item()
+    }
+
+    task_prompts = {
+        'high': '<MORE_DETAILED_CAPTION>',
+        'medium': '<DETAILED_CAPTION>',
+        'low': '<CAPTION>'
+    }
+
+    segments = []
+    match_started = False
+    match_seg_count = 0
+    current_detail_level = detail_level
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print(f"Error opening video file {video_path}")
+        return []
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    frame_index = 0
+    pbar = tqdm(total=total_frames, desc="Running inference:")
 
     while cap.isOpened():
-        frame_exists, _ = cap.read()
-        if not frame_exists:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+        ret, frame = cap.read()
+        if not ret:
             break
 
-        if frame_num == target_index:
-            timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
-            cap.release()
-            return round(timestamp_ms / 1000.0, 3)  # Convert to seconds with 3 decimals
+        frame = Image.fromarray(frame)
+        task_prompt = task_prompts[current_detail_level]
 
-        frame_num += 1
+        start_time = time.time()
+        results = run_florence2_inference(frame, task_prompt)
+        inference_time = time.time() - start_time
+
+        # Auto adjust detail level
+        if current_detail_level == 'high' and inference_time > 1:
+            print(f" Inference is slow with high detail level ({inference_time:.2f}s/frame), switching to medium...")
+            current_detail_level = 'medium'
+        elif current_detail_level == 'medium' and inference_time > 1:
+            print(f" Still slow with medium detail level ({inference_time:.2f}s/frame), switching to low...")
+            current_detail_level = 'low'
+
+        caption_text = results[task_prompt]
+        match_percent = compare_texts(user_text_input, caption_text)
+
+        if match_percent is not None and match_percent >= thresholds[current_detail_level]:
+            if not match_started:
+                match_started = True
+                match_seg_count += 1
+                start_index = frame_index
+                start_frame = frame
+                print(f"\n {get_suffix(match_seg_count)} Match started")
+                start_results = run_florence2_inference(start_frame, '<CAPTION_TO_PHRASE_GROUNDING>', user_text_input)
+            end_index = frame_index
+            end_frame = frame
+        else:
+            if match_started:
+                print(f" Ended")
+                end_results = run_florence2_inference(end_frame, '<CAPTION_TO_PHRASE_GROUNDING>', user_text_input)
+                segments.append({
+                    'start': get_timestamp_by_index(video_path, start_index),
+                    'end': get_timestamp_by_index(video_path, end_index)
+                })
+                print(f" {get_suffix(match_seg_count)} matching segment Start: {segments[-1]['start']}, End: {segments[-1]['end']} | Start frame index: {start_index} End frame index: {end_index}\n")
+                
+                if plot_matching_frames:
+                    print(f" Start Frame no.{start_index}")
+                    plot_bbox(start_frame, start_results['<CAPTION_TO_PHRASE_GROUNDING>'])
+                    print(f" End Frame no. {end_index}")
+                    plot_bbox(end_frame, end_results['<CAPTION_TO_PHRASE_GROUNDING>'])
+
+                match_started = False
+                user_input = input("\n Do you want to continue finding more segments? (yes/no): ")
+                if user_input.lower() != 'yes':
+                    pbar.close()
+                    print(f"Inference ended at frame no. {end_index}\n")
+                    break
+                else:
+                  print('Inference on...')
+                  
+        frame_index += sample_interval
+        pbar.update(sample_interval)
+
+    # Final segment check if video ends during match
+    if match_started:
+        segments.append({
+            'start': get_timestamp_by_index(video_path, start_index),
+            'end': get_timestamp_by_index(video_path, end_index)
+        })
+        print(f"  {get_suffix(match_seg_count)} matching segment:\n Start: {segments[-1]['start']}, End: {segments[-1]['end']} | Start frame index: {start_index} End frame index: {end_index}\n")     
+        if plot_matching_frames:
+          print(f" Start Frame no. {start_index}")
+          plot_bbox(start_frame, start_results['<CAPTION_TO_PHRASE_GROUNDING>'])
+          print(f" End Frame no. {end_index}")
+          plot_bbox(end_frame, end_results['<CAPTION_TO_PHRASE_GROUNDING>'])
+        print(f"Inference ended at frame no. {end_index}.\n")  
 
     cap.release()
-    logging.warning(f"Frame index {target_index} not found in video.")
-    return None
+    pbar.close()
+    return segments
 
 # Utility function
 def edit_paths(file_path):
@@ -655,7 +782,8 @@ def main():
     video_path = 'your_video.mp4'  # Path to the input video file
     video_frames_batches_dir = '/video_frames'  # Directory where folder of frames will be saved in batches
     video_name = os.path.splitext(os.path.basename(video_path))[0]  # Extract the video name without the extension
-    output_video_path = None
+    output_video_path_to_edit = 'your_path_to_edited_clip.mp4' # or None
+    output_video_path = edit_paths(output_video_path_to_edit) if output_video_path_to_edit is not None else None
 
     sample_interval = adjust_sample_interval(video_path)  # Dynamically adjust the sample interval based on video length
     batch_size = determine_chunk_size()  # Dynamically adjust the batch size based on available system memory
@@ -678,10 +806,14 @@ def main():
     user_text_input = 'your prompt'
 
     # Step 4: Find video segments that match the user's prompt input by comparing it with captions generated from frames
-    matching_segments = find_object_segments(video_path, frames_batches, frame_indices_batches, user_text_input)
+    #(Use  `find_object_segments` or `find_object_segments_v2` as per your convenience, recommended: `find_object_segments_v2`)
+    # use version 1
+    # matching_segments = find_object_segments(video_path, frames_batches, frame_indices_batches, user_text_input)
+    # use vesrion 2
+    matching_segments = find_object_segments_v2(video_path, user_text_input, sample_interval=sample_interval)
 
     # Step 5: Edit the video by extracting the matching segments and creating a highlight video
-    edit_video(video_path, matching_segments)  # Edit the video with the found segments and save the output
+    edit_video(video_path, matching_segments, output_video_path)  # Edit the video with the found segments and save the output
 
 # Entry point
 if __name__ == '__main__':
