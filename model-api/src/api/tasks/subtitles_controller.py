@@ -8,13 +8,13 @@ from core.subtitles import (
 from core.transfer import transfer_clips_to_backend
 from celery_app.job_manager import manager
 import uuid
+from clients.aws import s3_service
 
 @celery.task(bind=True)
-def process_clip_subtitles(self, file_bytes: bytes, filename: str) -> str:
+def process_clip_subtitles(self, s3_key: str, filename: str) -> str:
     video_path = os.path.join(settings.UPLOAD_FOLDER, "videos", f"{uuid.uuid4()}_{filename}")
 
-    with open(video_path, "wb") as f:
-        f.write(file_bytes)
+    s3_service.download_file(s3_key, video_path)
 
     if not manager.exists(self.request.id):
         manager.add_job(self.request.id)

@@ -1,14 +1,13 @@
 from fastapi.responses import StreamingResponse
 from core.aspect_ratio import enhance_video_aspect_ratio
 import os
+from clients.aws import s3_service
 from celery_app.app import celery
 
 @celery.task(bind=True)
-def change_aspect_ratio(bytes: bytes, input_path: str, output_path: str, ratio: float, method: str):
+def change_aspect_ratio(self, s3_key: str, input_path: str, output_path: str, ratio: float, method: str):
     
-    # Save uploaded video to disk
-    with open(input_path, "wb") as f:
-        f.write(bytes)
+    s3_service.download_file(s3_key, input_path)
 
     # Process the video
     output_video_path = enhance_video_aspect_ratio(input_path, output_path, ratio, method)

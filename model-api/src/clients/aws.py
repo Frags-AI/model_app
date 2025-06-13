@@ -2,6 +2,8 @@ import boto3
 from botocore.exceptions import NoCredentialsError, ClientError
 from fastapi import HTTPException
 import logging
+from typing import BinaryIO
+from uuid import uuid4
 from config import settings
 
 class S3Service:
@@ -21,9 +23,13 @@ class S3Service:
         except Exception as e:
             logging.error(f"Failed to create S3 client: {e}")
             raise
+        
+    # Generate S3_key
+    def generate_s3_key(self, filename: str):
+        return f"video/uploads/{uuid4()}_{filename}"
     
     # Uploads file to S3 as video object
-    def upload_file(self, file_obj, key: str, content_type: str = None):
+    def upload_file(self, file_obj: BinaryIO , key: str, content_type: str = None):
         try:
             extra_args = {}
             if content_type:

@@ -4,7 +4,7 @@ import os
 from celery_app.app import celery
 
 @celery.task(bind=True)
-def process_video(video_path, user_text_input):
+def process_video(video_path: str, user_text_input: str):
     video_frames_batches_dir = 'video_frames'
     video_name = os.path.splitext(os.path.basename(video_path))[0]
 

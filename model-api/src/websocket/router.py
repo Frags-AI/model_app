@@ -12,15 +12,9 @@ async def websocket_status(websocket: WebSocket, task_id: str):
         while True:
             task_result = AsyncResult(task_id, app=celery)
             if task_result.state == "PROGRESS":
-                await websocket.send_json({
-                    "state": task_result.state,
-                    "progress": task_result.info.get("progress")
-                })
+                await websocket.send_json(task_result.result)
             elif task_result.state in ("SUCCESS", "FAILURE"):
-                await websocket.send_json({
-                    "state": task_result.state,
-                    "result": task_result.result
-                })
+                await websocket.send_json(task_result.result)
                 break
             await asyncio.sleep(2.5)
     except WebSocketDisconnect:
