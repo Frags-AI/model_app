@@ -177,3 +177,6 @@ yarg==0.1.9
 flash_attn -q timm -q
 -q supervision
 transformers==4.51.3
+
+celery[sqs]>=5.2.7
+boto3

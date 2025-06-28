@@ -97,7 +97,24 @@ def shot_boundaries(video_path):
     shot_times = [to_sec(frame_indices[i]) for i in shots]
     return shot_times
 
-# ----------- 5. CLIP SEGMENTATION -----------
+# ----------- 5. CLIP SEGMENTATION & DEDUPLICATION -----------
+def merge_overlapping_clips(segments, min_time_diff=4):
+    """Merges overlapping clips to avoid duplicates based on start times."""
+    if not segments:
+        return []
+
+    # Segments are expected to be sorted by start time
+    merged = [segments[0]]
+    last_start_time = segments[0][0]
+
+    for current_start, current_end in segments[1:]:
+        if current_start - last_start_time >= min_time_diff:
+            merged.append((current_start, current_end))
+            last_start_time = current_start
+            
+    return merged
+
+
 def segment_clips(action_segs, audio_segs, loudest_times, shot_times, clip_length=8):
     starts = set()
     for (start, end, *_ ) in action_segs:
@@ -146,6 +163,10 @@ def main_pipeline(video_path, out_dir="clips"):
     shot_times = shot_boundaries(video_path)
     logging.info("[5] Segmenting clips...")
     segments = segment_clips(action_segs, audio_segs, loudest_times, shot_times, clip_length=8)
+    logging.info(f"Generated {len(segments)} initial clips. Merging duplicates...")
+    segments = merge_overlapping_clips(segments, min_time_diff=4) # clip_length/2
+    logging.info(f"Reduced to {len(segments)} unique clips.")
+
     logging.info("[6] Ranking clip virality...")
     ranked = rank_virality(segments, action_segs, audio_segs)
     logging.info("[7] Saving top 20 clips...")
