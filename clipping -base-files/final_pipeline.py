@@ -13,6 +13,18 @@ from video_to_clips import find_loudest_moments
 from shot_sift_updated import adjust_sample_interval, extract_frames_sequential, detect_shot_boundaries
 from preprocessing_final import extract_frames, process_frames, adjust_sample_interval as preprocess_interval, determine_chunk_size
 
+# --- New Storytelling & Image Gen Imports ---
+import io
+import time
+import requests
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+from moviepy.editor import VideoFileClip, ImageClip, TextClip, CompositeVideoClip, concatenate_videoclips
+
+# Add final-api path to allow transcription import
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'final-api')))
+from transcription import transcribe_video
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ----------- ACTION DETECTION CONFIG -----------
@@ -151,6 +163,101 @@ def save_top_clips(video_path, ranked_segments, out_dir="clips", top_n=20, clip_
         os.system(cmd)
         logging.info(f"✅ Saved: {out_file} (score: {score})")
 
+# ===================================================================
+# ==================== NEW STORYTELLING PIPELINE ====================
+# ===================================================================
+
+# ----------- HELPER: AI IMAGE GENERATION ----------------
+REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN")
+
+def generate_image_for_prompt(prompt, output_path):
+    if not REPLICATE_API_TOKEN:
+        logging.warning("REPLICATE_API_TOKEN not set. Falling back to placeholder image.")
+        safe_prompt = requests.utils.quote(prompt)
+        placeholder_url = f"https://via.placeholder.com/512x512.png?text={safe_prompt}"
+        try:
+            response = requests.get(placeholder_url)
+            response.raise_for_status()
+            with open(output_path, 'wb') as f:
+                f.write(response.content)
+            return output_path
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Failed to download placeholder image: {e}")
+            return None
+    # (Implementation for Replicate API would go here)
+    logging.info(f"Image generation for '{prompt}' completed.")
+    return None # Placeholder
+
+# ----------- HELPER: SEMANTIC ANALYSIS ----------------
+def summarize_and_cluster_transcript(transcript, num_clusters=5):
+    if not transcript or len(transcript) < num_clusters:
+        return {0: transcript} if transcript else {}
+    texts = [item['text'] for item in transcript]
+    vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
+    tfidf_matrix = vectorizer.fit_transform(texts)
+    kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init=10)
+    kmeans.fit(tfidf_matrix)
+    clusters = {i: [] for i in range(num_clusters)}
+    for i, item in enumerate(transcript):
+        clusters[kmeans.labels_[i]].append(item)
+    return clusters
+
+def select_story_clips(clusters, clips_per_cluster=2):
+    selected_clips = []
+    for cluster_id, segments in clusters.items():
+        if not segments:
+            continue
+        segments.sort(key=lambda x: len(x['text']), reverse=True)
+        selected_clips.extend(segments[:clips_per_cluster])
+    selected_clips.sort(key=lambda x: x['start'])
+    return selected_clips
+
+# ----------- 8. STORYTELLING PIPELINE ----------------
+def create_story_video(video_path, out_dir="story_output", num_topics=3, clips_per_topic=2):
+    logging.info("===== Storytelling Pipeline START ====")
+    os.makedirs(out_dir, exist_ok=True)
+
+    logging.info("[1] Transcribing video...")
+    transcript = transcribe_video(video_path)
+    if not transcript:
+        logging.error("Transcription failed. Aborting.")
+        return
+
+    logging.info("[2] Analyzing transcript...")
+    clusters = summarize_and_cluster_transcript(transcript, num_clusters=num_topics)
+    story_clips_info = select_story_clips(clusters, clips_per_cluster=clips_per_topic)
+    if not story_clips_info:
+        logging.error("Could not select story clips. Aborting.")
+        return
+
+    logging.info(f"[3] Generating story from {len(story_clips_info)} clips...")
+    final_video_segments = []
+    for i, clip_info in enumerate(story_clips_info):
+        start, end, text = clip_info['start'], clip_info['end'], clip_info['text']
+        logging.info(f"  - Processing clip: '{text}'")
+        
+        img_path = os.path.join(out_dir, f"temp_image_{i}.png")
+        generate_image_for_prompt(f"cinematic, {text}", img_path)
+
+        if os.path.exists(img_path):
+            ai_image_clip = ImageClip(img_path).set_duration(3).set_pos('center')
+            txt_clip = TextClip(text, fontsize=24, color='white', bg_color='black', size=ai_image_clip.size).set_pos('center', 'bottom').set_duration(3)
+            title_card = CompositeVideoClip([ai_image_clip, txt_clip])
+            final_video_segments.append(title_card)
+
+        video_segment = VideoFileClip(video_path).subclip(start, end)
+        final_video_segments.append(video_segment)
+
+    if not final_video_segments:
+        logging.error("No segments generated. Aborting.")
+        return
+
+    logging.info("[4] Stitching final video...")
+    final_video = concatenate_videoclips(final_video_segments, method="compose")
+    output_path = os.path.join(out_dir, "final_story_video.mp4")
+    final_video.write_videofile(output_path, codec="libx264", audio_codec="aac")
+    logging.info(f"===== Storytelling Pipeline COMPLETE! Video saved to {output_path} =====")
+
 # ----------- MAIN PIPELINE -------------------
 def main_pipeline(video_path, out_dir="clips"):
     logging.info("===== Opus Clip for Gaming Videos Pipeline START =====")
@@ -175,9 +282,19 @@ def main_pipeline(video_path, out_dir="clips"):
 
 # ----------- ENTRY POINT ---------------------
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python pipeline.py path_to_video.mp4 [output_dir]")
+    if len(sys.argv) < 3:
+        print("Usage: python final_pipeline.py <pipeline_type> <path_to_video.mp4> [output_dir]")
+        print("  pipeline_type: 'clips' or 'story'")
         sys.exit(1)
-    video_path = sys.argv[1]
-    out_dir = sys.argv[2] if len(sys.argv) > 2 else "clips"
-    main_pipeline(video_path, out_dir=out_dir)
+
+    pipeline_type = sys.argv[1]
+    video_path = sys.argv[2]
+    out_dir = sys.argv[3] if len(sys.argv) > 3 else None
+
+    if pipeline_type == 'clips':
+        main_pipeline(video_path, out_dir=out_dir or "clips")
+    elif pipeline_type == 'story':
+        create_story_video(video_path, out_dir=out_dir or "story_output")
+    else:
+        print(f"Error: Unknown pipeline type '{pipeline_type}'. Choose 'clips' or 'story'.")
+        sys.exit(1)
