@@ -14,6 +14,7 @@ from shot_sift_updated import adjust_sample_interval, extract_frames_sequential,
 from preprocessing_final import extract_frames, process_frames, adjust_sample_interval as preprocess_interval, determine_chunk_size
 
 # --- New Storytelling & Image Gen Imports ---
+from transcription import transcribe_video
 import io
 import time
 import requests
@@ -21,14 +22,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
 from moviepy.editor import VideoFileClip, ImageClip, TextClip, CompositeVideoClip, concatenate_videoclips
 
-# Add final-api path to allow transcription import
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'final-api')))
-from transcription import transcribe_video
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ----------- ACTION DETECTION CONFIG -----------
-MODEL_PATH = "Model_LATEST.h5" # Change to your model's filename
+MODEL_PATH = "Model_Latest.h5" # Change to your model's filename
 IMAGE_HEIGHT, IMAGE_WIDTH = 64, 64
 TIMESTEPS = 10
 NO_OF_CHANNELS = 3
@@ -232,6 +231,7 @@ def create_story_video(video_path, out_dir="story_output", num_topics=3, clips_p
 
     logging.info(f"[3] Generating story from {len(story_clips_info)} clips...")
     final_video_segments = []
+    video_clip = VideoFileClip(video_path)
     for i, clip_info in enumerate(story_clips_info):
         start, end, text = clip_info['start'], clip_info['end'], clip_info['text']
         logging.info(f"  - Processing clip: '{text}'")
@@ -245,8 +245,11 @@ def create_story_video(video_path, out_dir="story_output", num_topics=3, clips_p
             title_card = CompositeVideoClip([ai_image_clip, txt_clip])
             final_video_segments.append(title_card)
 
-        video_segment = VideoFileClip(video_path).subclip(start, end)
-        final_video_segments.append(video_segment)
+        if end > start:
+            clip = video_clip.subclip(start, end)
+            final_video_segments.append(clip)
+
+    video_clip.close() # Close the main video clip
 
     if not final_video_segments:
         logging.error("No segments generated. Aborting.")
@@ -256,6 +259,12 @@ def create_story_video(video_path, out_dir="story_output", num_topics=3, clips_p
     final_video = concatenate_videoclips(final_video_segments, method="compose")
     output_path = os.path.join(out_dir, "final_story_video.mp4")
     final_video.write_videofile(output_path, codec="libx264", audio_codec="aac")
+    final_video.close() # Close the final composite clip
+
+    # Clean up individual clips
+    for clip in final_video_segments:
+        clip.close()
+
     logging.info(f"===== Storytelling Pipeline COMPLETE! Video saved to {output_path} =====")
 
 # ----------- MAIN PIPELINE -------------------

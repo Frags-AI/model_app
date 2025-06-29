@@ -2,19 +2,33 @@ import requests
 import os
 import logging
 import time
+from PIL import Image, ImageDraw, ImageFont
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Configuration for Replicate API ---
 # NOTE: You need to get an API token from Replicate (replicate.com) and set it as an environment variable.
 # For example: export REPLICATE_API_TOKEN='your_token_here'
-REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN", None)
+REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN")
 REPLICATE_MODEL_VERSION = "stability-ai/stable-diffusion:db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5BF"
+
+def create_placeholder_image(text, width=512, height=512):
+    """Generates a placeholder image locally with the given text."""
+    img = Image.new('RGB', (width, height), color = (73, 109, 137))
+    d = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("arial.ttf", 20)
+    except IOError:
+        font = ImageFont.load_default()
+    d.text((10,10), text, fill=(255,255,0), font=font)
+    placeholder_path = f"placeholder_{text.replace(' ', '_')[:20]}.png"
+    img.save(placeholder_path)
+    return placeholder_path
 
 def generate_image_for_prompt(prompt, output_path):
     """
     Generates an image based on a text prompt using the Replicate API.
-    If no API key is found, it falls back to a placeholder image service.
+    If no API key is found, it falls back to a local placeholder image.
 
     Args:
         prompt (str): The text prompt for image generation.
@@ -23,21 +37,14 @@ def generate_image_for_prompt(prompt, output_path):
     Returns:
         str: The path to the generated image, or None if generation failed.
     """
-    # If no API token is available, use a placeholder image service for demonstration.
+    # If no API token is available, use a local placeholder image for demonstration.
     if not REPLICATE_API_TOKEN:
-        logging.warning("REPLICATE_API_TOKEN not set. Falling back to placeholder image.")
-        # Sanitize prompt for URL
-        safe_prompt = requests.utils.quote(prompt)
-        placeholder_url = f"https://via.placeholder.com/512x512.png?text={safe_prompt}"
+        logging.warning("REPLICATE_API_TOKEN not set. Falling back to local placeholder image.")
         try:
-            response = requests.get(placeholder_url)
-            response.raise_for_status()
-            with open(output_path, 'wb') as f:
-                f.write(response.content)
-            logging.info(f"Saved placeholder image for prompt: '{prompt}'")
-            return output_path
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Failed to download placeholder image: {e}")
+            image_path = create_placeholder_image(prompt)
+            return image_path
+        except Exception as e:
+            logging.error(f"Failed to create local placeholder image: {e}")
             return None
 
     headers = {

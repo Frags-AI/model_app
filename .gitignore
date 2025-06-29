@@ -2,12 +2,36 @@ yolo.weights
 桴浵湢楡彬敧敮慲潴⽲潭敤獬礯汯⹯敷杩瑨⁳਍琢畨扭慮汩束湥牥瑡牯洯摯汥⽳潹潬眮楥桧獴•਍桴浵湢楡彬敧敮慲潴⽲潭敤獬礯汯⹯敷杩瑨⁳਍
 
 .venv/
+venv/
 .env
 .env.local
 .env.production
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Generated media and output directories
+clips/
+story_output/
+tmp_frames/
+*.mp4
+
+# Ignore large model files
+*.h5
+Model_Latest.h5
+
+# Ignore specific source media if needed
 Clipping-project/src/media/*
 
-# Ignore image files
+# Ignore common image files
 *.png
 *.jpg
 *.jpeg
@@ -16,15 +40,3 @@ Clipping-project/src/media/*
 *.tiff
 *.webp
 *.svg
-
-# Ignore video files
-*.mp4
-*.mov
-*.avi
-*.mkv
-*.flv
-*.wmv
-*.webm
-*.m4v
-
-__pycache__/
