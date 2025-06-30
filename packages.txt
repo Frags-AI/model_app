@@ -1,0 +1,6 @@
+Things to install for docker:
+
+NIVIDIA cuDNN Library
+NVIDIA CUDA Toolkit
+ffmpeg
+ImageMagick

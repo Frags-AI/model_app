@@ -6,7 +6,6 @@ from tqdm import tqdm
 import subprocess
 
 # --- Step 1: Extract audio from video ---
-from moviepy.editor import VideoFileClip
 import subprocess
 
 def extract_audio_ffmpeg(video_path, audio_path="extracted_audio.wav"):
@@ -141,31 +140,3 @@ def save_clips_fast_parallel(video_path, segments, output_dir="clips", max_worke
         for future in tqdm(as_completed(futures), total=len(futures)):
             clip_path = future.result()
             print(f"Saved clip: {clip_path}")
-
-# --- Main pipeline ---
-def main_pipeline(video_path):
-    print("Step 1: Extracting audio...")
-    audio_path = extract_audio_ffmpeg(video_path)  # use ffmpeg version here
-
-    # rest of pipeline unchanged ...
-
-    print("Step 2: Detecting gunshots...")
-    gunshots = detect_gunshots(audio_path)
-    print(f"Gunshot segments: {gunshots}")
-
-    print("Step 3: Detecting laughter...")
-    laughs = detect_laughter(audio_path)
-    print(f"Laughter segments: {laughs}")
-
-    print("Step 4: Merging segments...")
-    segments = merge_segments(gunshots, laughs)
-    print(f"Merged segments: {segments}")
-
-    print("Step 5: Saving video clips...")
-    save_clips_fast_parallel(video_path, segments, max_workers=8)  # Adjust max_workers based on your CPU cores
-
-    print("Processing completed.")
-
-if __name__ == "__main__":
-    video_file = "9.mp4"  # Replace with your actual file path
-    main_pipeline(video_file)

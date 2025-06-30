@@ -133,3 +133,5 @@ def copy_files(ranked_clips):
 def get_video_clips_from_folder(folder_path):
     valid_extensions = (".mp4", ".avi", ".mov", ".mkv")
     return [os.path.join(folder_path, file) for file in os.listdir(folder_path) if file.endswith(valid_extensions)]
+
+

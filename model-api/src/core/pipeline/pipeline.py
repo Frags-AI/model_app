@@ -1,16 +1,26 @@
 import os
+import sys
 import cv2
 import numpy as np
 import logging
 import soundfile as sf
 from tensorflow.keras.models import load_model
+from config import settings
 
 # --- Import all your utility modules ---
 from .audio_analysis import extract_audio_ffmpeg, detect_gunshots, detect_laughter, merge_segments
 from .video_to_clips import find_loudest_moments
 from .shot_sift import adjust_sample_interval, extract_frames_sequential, detect_shot_boundaries
 from .preprocessing import extract_frames, process_frames, adjust_sample_interval as preprocess_interval, determine_chunk_size
-from config import settings
+
+# --- New Storytelling & Image Gen Imports ---
+import requests
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+from moviepy.editor import VideoFileClip, ImageClip, TextClip, CompositeVideoClip, concatenate_videoclips
+
+# Add final-api path to allow transcription import
+from core.transcription import transcribe_video
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -20,7 +30,6 @@ IMAGE_HEIGHT, IMAGE_WIDTH = 64, 64
 TIMESTEPS = 10
 NO_OF_CHANNELS = 3
 CLASS_CATEGORIES_LIST = ["Nunchucks", "Punch"] # Edit as per your model
-NUM_CLASSES = len(CLASS_CATEGORIES_LIST)
 
 # ----------- 1. PREPROCESSING -----------------
 def preprocess_video(video_path, tmp_dir=os.path.join(settings.DOWNLOAD_FOLDER, "frames")):
@@ -40,7 +49,6 @@ def sliding_window_predict(video_path, model_path=MODEL_PATH, window=TIMESTEPS, 
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30
     frames = []
-    timestamps = []
     segments = []
     idx = 0
 
@@ -67,7 +75,10 @@ def sliding_window_predict(video_path, model_path=MODEL_PATH, window=TIMESTEPS, 
         preds = model.predict(input_clip)
         pred_class_idx = np.argmax(preds)
         pred_score = float(np.max(preds))
-        pred_label = CLASS_CATEGORIES_LIST[pred_class_idx] if 0 <= pred_class_idx < NUM_CLASSES else None
+        pred_label = None
+        
+        if pred_class_idx < len(CLASS_CATEGORIES_LIST):
+            pred_label = CLASS_CATEGORIES_LIST[pred_class_idx]
 
         if pred_score >= threshold:
             start_sec = i / fps
@@ -98,7 +109,23 @@ def shot_boundaries(video_path):
     shot_times = [to_sec(frame_indices[i]) for i in shots]
     return shot_times
 
-# ----------- 5. CLIP SEGMENTATION -----------
+# ----------- 5. CLIP SEGMENTATION & DEDUPLICATION -----------
+def merge_overlapping_clips(segments, min_time_diff=4):
+    """Merges overlapping clips to avoid duplicates based on start times."""
+    if not segments:
+        return []
+
+    # Segments are expected to be sorted by start time
+    merged = [segments[0]]
+    last_start_time = segments[0][0]
+
+    for current_start, current_end in segments[1:]:
+        if current_start - last_start_time >= min_time_diff:
+            merged.append((current_start, current_end))
+            last_start_time = current_start
+            
+    return merged
+
 def segment_clips(action_segs, audio_segs, loudest_times, shot_times, clip_length=8):
     starts = set()
     for (start, end, *_ ) in action_segs:
@@ -135,34 +162,157 @@ def save_top_clips(video_path, ranked_segments, out_dir="clips", top_n=20, clip_
         os.system(cmd)
         logging.info(f"✅ Saved: {out_file} (score: {score})")
 
+# ===================================================================
+# ==================== NEW STORYTELLING PIPELINE ====================
+# ===================================================================
+
+# ----------- HELPER: AI IMAGE GENERATION ----------------
+
+def generate_image_for_prompt(prompt, output_path):
+    if not settings.REPLICATE_API_TOKEN:
+        logging.warning("REPLICATE_API_TOKEN not set. Falling back to placeholder image.")
+        safe_prompt = requests.utils.quote(prompt)
+        placeholder_url = f"https://via.placeholder.com/512x512.png?text={safe_prompt}"
+        try:
+            response = requests.get(placeholder_url)
+            response.raise_for_status()
+            with open(output_path, 'wb') as f:
+                f.write(response.content)
+            return output_path
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Failed to download placeholder image: {e}")
+            return None
+    # (Implementation for Replicate API would go here)
+    logging.info(f"Image generation for '{prompt}' completed.")
+    return None # Placeholder
+
+# ----------- HELPER: SEMANTIC ANALYSIS ----------------
+def summarize_and_cluster_transcript(transcript, num_clusters=5):
+    if not transcript or len(transcript) < num_clusters:
+        return {0: transcript} if transcript else {}
+    texts = [item['text'] for item in transcript]
+    vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
+    tfidf_matrix = vectorizer.fit_transform(texts)
+    kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init=10)
+    kmeans.fit(tfidf_matrix)
+    clusters = {i: [] for i in range(num_clusters)}
+    for i, item in enumerate(transcript):
+        clusters[kmeans.labels_[i]].append(item)
+    return clusters
+
+def select_story_clips(clusters, clips_per_cluster=2):
+    selected_clips = []
+    for cluster_id, segments in clusters.items():
+        if not segments:
+            continue
+        segments.sort(key=lambda x: len(x['text']), reverse=True)
+        selected_clips.extend(segments[:clips_per_cluster])
+    selected_clips.sort(key=lambda x: x['start'])
+    return selected_clips
+
+# ----------- 1. STORYTELLING PIPELINE ----------------
+def create_story_video(video_path, out_dir="story_output", num_topics=3, clips_per_topic=2):
+    logging.info("===== Storytelling Pipeline START ====")
+    os.makedirs(out_dir, exist_ok=True)
+
+    logging.info("[1] Transcribing video...")
+    transcript = transcribe_video(video_path)
+    if not transcript:
+        logging.error("Transcription failed. Aborting.")
+        return
+
+    logging.info("[2] Analyzing transcript...")
+    clusters = summarize_and_cluster_transcript(transcript, num_clusters=num_topics)
+    story_clips_info = select_story_clips(clusters, clips_per_cluster=clips_per_topic)
+    if not story_clips_info:
+        logging.error("Could not select story clips. Aborting.")
+        return
+
+    logging.info(f"[3] Generating story from {len(story_clips_info)} clips...")
+    final_video_segments = []
+    for i, clip_info in enumerate(story_clips_info):
+        start, end, text = clip_info['start'], clip_info['end'], clip_info['text']
+        logging.info(f"  - Processing clip: '{text}'")
+        
+        img_path = os.path.join(out_dir, f"temp_image_{i}.png")
+        generate_image_for_prompt(f"cinematic, {text}", img_path)
+
+        if os.path.exists(img_path):
+            ai_image_clip = ImageClip(img_path).set_duration(3).set_pos('center')
+            txt_clip = TextClip(text, fontsize=24, color='white', bg_color='black', size=ai_image_clip.size).set_pos('center', 'bottom').set_duration(3)
+            title_card = CompositeVideoClip([ai_image_clip, txt_clip])
+            final_video_segments.append(title_card)
+
+        video_segment = VideoFileClip(video_path).subclip(start, end)
+        final_video_segments.append(video_segment)
+
+    if not final_video_segments:
+        logging.error("No segments generated. Aborting.")
+        return
+
+    logging.info("[4] Stitching final video...")
+    final_video = concatenate_videoclips(final_video_segments, method="compose")
+    output_path = os.path.join(out_dir, "final_story_video.mp4")
+    final_video.write_videofile(output_path, codec="libx264", audio_codec="aac")
+    logging.info(f"===== Storytelling Pipeline COMPLETE! Video saved to {output_path} =====")
+
 # ----------- MAIN PIPELINE -------------------
 def main_pipeline(video_path, output_folder="clips", progress_callback=None):
-    logging.info("===== Opus Clip for Gaming Videos Pipeline START =====")
 
-    # if progress_callback: progress_callback("Preprocessing video", 5)
-    # processed_frames_dir = preprocess_video(video_path)
-
+    # logging.info("===== Opus Clip for Gaming Videos Pipeline START =====")
+    # processed_frames_dir = preprocess_video(video_path, "frames")
+    
+    logging.info("[2] Running action detection...")
     if progress_callback: progress_callback("Running action detection", 20)
     action_segs = sliding_window_predict(video_path, model_path=MODEL_PATH, window=TIMESTEPS, stride=5, threshold=0.7)
 
+    logging.info("[3] Analyzing audio...")
     if progress_callback: progress_callback("Analyzing audio", 30)
     audio_segs, loudest_times = audio_events(video_path)
-
+    
     if progress_callback: progress_callback("Detecting shot boundaries", 45)
+    logging.info("[4] Detecting shot boundaries...")
     shot_times = shot_boundaries(video_path)
 
-    if progress_callback: progress_callback("Segmenting clips", 80)
+    if progress_callback: progress_callback("Segmenting clips", 70)
+    logging.info("[5] Segmenting clips...")
     segments = segment_clips(action_segs, audio_segs, loudest_times, shot_times, clip_length=8)
 
+    if progress_callback: progress_callback("Merging duplicate clips", 80)
+    logging.info(f"Generated {len(segments)} initial clips. Merging duplicates...")
+    segments = merge_overlapping_clips(segments, min_time_diff=4)
+    logging.info(f"Reduced to {len(segments)} unique clips.")
+
     if progress_callback: progress_callback("Ranking virality", 85)
+    logging.info("[6] Ranking clip virality...")
     ranked = rank_virality(segments, action_segs, audio_segs)
 
     if progress_callback: progress_callback("Saving top 20 clips", 95)
+    logging.info("[7] Saving top 20 clips...")
     save_top_clips(video_path, ranked, out_dir=output_folder, top_n=20, clip_length=8)
 
     if progress_callback: progress_callback("Pipeline complete", 100, "SUCCESS")
     logging.info("===== Pipeline COMPLETE! Top clips are saved. =====")
     return output_folder
+
+# # ----------- ENTRY POINT ---------------------
+# if __name__ == "__main__":
+#     if len(sys.argv) < 3:
+#         print("Usage: python final_pipeline.py <pipeline_type> <path_to_video.mp4> [output_dir]")
+#         print("  pipeline_type: 'clips' or 'story'")
+#         sys.exit(1)
+
+#     pipeline_type = sys.argv[1]
+#     video_path = sys.argv[2]
+#     out_dir = sys.argv[3] if len(sys.argv) > 3 else None
+
+#     if pipeline_type == 'clips':
+#         main_pipeline(video_path, out_dir=out_dir or "clips")
+#     elif pipeline_type == 'story':
+#         create_story_video(video_path, out_dir=out_dir or "story_output")
+#     else:
+#         print(f"Error: Unknown pipeline type '{pipeline_type}'. Choose 'clips' or 'story'.")
+#         sys.exit(1)
 
 
 

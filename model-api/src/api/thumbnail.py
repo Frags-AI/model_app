@@ -13,6 +13,7 @@ def generate_thumbnail(mode: int, file: UploadFile = None, prompt: str = None, t
     
     s3_key = None
     s3_url = None
+    
     if file:
         s3_key = s3_service.generate_s3_key(file.filename)
         s3_url = s3_service.upload_file(file.file, s3_key)

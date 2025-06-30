@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     ELEVENLABS_URL: str = os.environ.get("ELEVENLABS_URL", "https://api.elevenlabs.io/v1/text-to-speech/cgSgspJ2msm6clMCkdW9")
     STABLE_DIFFUSION_KEY: str = os.environ.get("STABLE_DIFFUSION_KEY")
     STABLE_DIFFUSION_URL: str = os.environ.get("STABLE_DIFFUSION_URL", "https://api.stablediffusionapi.com/v1/generate")
+    REPLICATE_API_TOKEN: str | None = os.environ.get("REPLICATE_API_TOKEN", None)
     AWS_ACCESS_KEY: str = os.environ.get("AWS_ACCESS_KEY")
     AWS_SECRET_KEY: str = os.environ.get("AWS_SECRET_KEY")
     S3_BUCKET: str = os.environ.get("S3_BUCKET")
