@@ -4,11 +4,13 @@ import librosa
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 import subprocess
+from config import settings
+from uuid import uuid4
 
 # --- Step 1: Extract audio from video ---
 import subprocess
 
-def extract_audio_ffmpeg(video_path, audio_path="extracted_audio.wav"):
+def extract_audio_ffmpeg(video_path: str, audio_path: str):
     command = [
         "ffmpeg",
         "-y",  # overwrite output file if exists

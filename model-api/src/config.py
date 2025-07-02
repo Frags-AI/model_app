@@ -30,19 +30,4 @@ class Settings(BaseSettings):
     S3_BUCKET: str = os.environ.get("S3_BUCKET")
     S3_REGION: str = os.environ.get("S3_REGION")
 
-    # Add subdirectories here
-    def generate_subdirectories(self):
-        os.makedirs(self.UPLOAD_FOLDER, exist_ok=True)
-        os.makedirs(self.DOWNLOAD_FOLDER, exist_ok=True)
-        os.makedirs(self.FLORENCE_FOLDER, exist_ok=True)
-        subdirectories = ["videos", "thumbnails", "audios", "clips", "frames"]
-
-        # Generate media subdirectories
-        for subdirectory in subdirectories:
-            upload_folder_path = os.path.join(self.UPLOAD_FOLDER, subdirectory)
-            download_folder_path = os.path.join(self.DOWNLOAD_FOLDER, subdirectory)
-            os.makedirs(upload_folder_path, exist_ok=True)
-            os.makedirs(download_folder_path, exist_ok=True)
-
 settings = Settings()
-settings.generate_subdirectories()

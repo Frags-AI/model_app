@@ -5,6 +5,7 @@ import numpy as np
 import logging
 import soundfile as sf
 from tensorflow.keras.models import load_model
+from clients.filesystem import StorageSystem
 from config import settings
 
 # --- Import all your utility modules ---
@@ -87,8 +88,8 @@ def sliding_window_predict(video_path, model_path=MODEL_PATH, window=TIMESTEPS, 
     return segments
 
 # ----------- 3. AUDIO ANALYSIS --------------
-def audio_events(video_path):
-    audio_path = extract_audio_ffmpeg(video_path)
+def audio_events(video_path: str, output_path: str):
+    audio_path = extract_audio_ffmpeg(video_path, output_path)
     gunshots = detect_gunshots(audio_path)
     laughs = detect_laughter(audio_path)
     merged = merge_segments(gunshots, laughs)
@@ -152,15 +153,16 @@ def rank_virality(segments, action_segs, audio_segs):
     return ranked
 
 # ----------- 7. SAVE CLIPS ------------------
-def save_top_clips(video_path, ranked_segments, out_dir="clips", top_n=20, clip_length=8):
-    os.makedirs(out_dir, exist_ok=True)
+def save_top_clips(video_path, ranked_segments, output_dir, top_n=20, clip_length=8):
     for i, (start, end, score) in enumerate(ranked_segments[:top_n]):
-        out_file = os.path.join(out_dir, f"clip_{i+1}_{start:.2f}_{end:.2f}_score{score}.mp4")
+        out_file = os.path.join(output_dir, f"clip_{i+1}_{start:.2f}_{end:.2f}_score{score}.mp4")
         cmd = (
             f'ffmpeg -ss {start} -i "{video_path}" -t {clip_length} -c copy -avoid_negative_ts make_zero -y "{out_file}"'
         )
         os.system(cmd)
         logging.info(f"✅ Saved: {out_file} (score: {score})")
+
+    return output_dir
 
 # ===================================================================
 # ==================== NEW STORYTELLING PIPELINE ====================
@@ -257,7 +259,7 @@ def create_story_video(video_path, out_dir="story_output", num_topics=3, clips_p
     logging.info(f"===== Storytelling Pipeline COMPLETE! Video saved to {output_path} =====")
 
 # ----------- MAIN PIPELINE -------------------
-def main_pipeline(video_path, output_folder="clips", progress_callback=None):
+def main_pipeline(video_path: str, storage_system: StorageSystem, progress_callback=None):
 
     # logging.info("===== Opus Clip for Gaming Videos Pipeline START =====")
     # processed_frames_dir = preprocess_video(video_path, "frames")
@@ -268,7 +270,7 @@ def main_pipeline(video_path, output_folder="clips", progress_callback=None):
 
     logging.info("[3] Analyzing audio...")
     if progress_callback: progress_callback("Analyzing audio", 30)
-    audio_segs, loudest_times = audio_events(video_path)
+    audio_segs, loudest_times = audio_events(video_path, storage_system.create_download_path("audios", "extracted_audio.wav"))
     
     if progress_callback: progress_callback("Detecting shot boundaries", 45)
     logging.info("[4] Detecting shot boundaries...")
@@ -289,7 +291,8 @@ def main_pipeline(video_path, output_folder="clips", progress_callback=None):
 
     if progress_callback: progress_callback("Saving top 20 clips", 95)
     logging.info("[7] Saving top 20 clips...")
-    save_top_clips(video_path, ranked, out_dir=output_folder, top_n=20, clip_length=8)
+    
+    output_folder = save_top_clips(video_path, ranked, storage_system.create_download_path("clips"), top_n=20, clip_length=8)
 
     if progress_callback: progress_callback("Pipeline complete", 100, "SUCCESS")
     logging.info("===== Pipeline COMPLETE! Top clips are saved. =====")

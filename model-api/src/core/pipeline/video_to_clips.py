@@ -56,17 +56,27 @@ def find_loudest_moments(audio, sr, num_clips=15, clip_length=5):
                 loudest_times.append(start_time)
     
     count = 1
-    while len(loudest_times) < num_clips: 
-        idx = -(num_clips+count)
-        loudest_index = np.argsort(rms_vals)[idx]
-        start_time = loudest_index.item()*clip_length
-        prev_time1 = np.argsort(rms_vals)[idx-1].item() * clip_length
-        prev_time2 = np.argsort(rms_vals)[idx-2].item() * clip_length
-        if start_time == prev_time1+clip_length:
-            if start_time == prev_time2+2*clip_length:
+    sorted_indices = np.argsort(rms_vals)
+    total_indices = len(sorted_indices)
+    
+    while len(loudest_times) < num_clips and (num_clips + count) <= total_indices:
+        idx = -(num_clips + count)
+
+        # Ensure indices idx, idx-1, idx-2 are all within bounds
+        if total_indices + idx < 0 or total_indices + idx - 2 < 0:
+            break  # prevent out-of-bounds access
+
+        loudest_index = sorted_indices[idx]
+        start_time = loudest_index.item() * clip_length
+        prev_time1 = sorted_indices[idx - 1].item() * clip_length
+        prev_time2 = sorted_indices[idx - 2].item() * clip_length
+
+        if start_time == prev_time1 + clip_length:
+            if start_time == prev_time2 + 2 * clip_length:
                 loudest_times.append(start_time)
-            else: 
+            else:
                 loudest_times.append(start_time)
+
         count += 1     
 
     return sorted(loudest_times)
