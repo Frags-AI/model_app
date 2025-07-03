@@ -1,8 +1,11 @@
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
-from sklearn.metrics.pairwise import cosine_similarity
+from ..transcription import transcribe_video
 import logging
+import os
+from moviepy.editor import VideoFileClip
+from clients.filesystem import StorageSystem
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -53,7 +56,7 @@ def select_story_clips(clusters, clips_per_cluster=2):
         list: A list of selected clip segments, sorted by their original start time.
     """
     selected_clips = []
-    for cluster_id, segments in clusters.items():
+    for _, segments in clusters.items():
         if not segments:
             continue
 
@@ -70,9 +73,49 @@ def select_story_clips(clusters, clips_per_cluster=2):
     logging.info(f"Selected {len(selected_clips)} clips to form the story.")
     return selected_clips
 
+def save_story_clips(video_path, selected_clips, ss: StorageSystem):
+    """
+    Extracts and saves video clips from the main video based on selected segments.
+
+    Args:
+        video_path (str): Path to the full video file.
+        selected_clips (list): List of selected clip dicts with 'start' and 'end' or 'duration'.
+        output_dir (str): Directory to save the output clips.
+    """
+    video = VideoFileClip(video_path)
+    base_dir = ss.create_download_path("clips")
+
+    for i, clip in enumerate(selected_clips):
+        start = clip['start']
+        end = clip.get('end', start + clip.get('duration', 5))  # Fallback to 5s duration
+
+        subclip = video.subclip(start, end)
+        output_path = os.path.join(base_dir, f"clip_{i+1:02d}.mp4")
+        subclip.write_videofile(output_path, codec="libx264", audio_codec="aac")
+
+    video.close()
+    return base_dir
+
+def semantic_pipeline(video_path: str, storage_system: StorageSystem, progress_callback=None):
+    if progress_callback: progress_callback("Generating Transcription", 25)
+    transcription = transcribe_video(video_path)
+
+    if progress_callback: progress_callback("Clustering Video", 50)
+    story_clusters = summarize_and_cluster_transcript(transcription, num_clusters=2)
+
+    if progress_callback: progress_callback("Selecting Best Clips", 75)
+    final_story_clips = select_story_clips(story_clusters, clips_per_cluster=2)
+
+    if progress_callback: progress_callback("Parsing and Downloading Video Clips", 85)
+    output_path = save_story_clips(video_path, final_story_clips, storage_system)
+
+    return output_path
+
+    
+
+
 # Example Usage:
 if __name__ == '__main__':
-    # This is a dummy transcript for demonstration purposes.
     # In the pipeline, this would come from the transcribe_video function.
     sample_transcript = [
         {'start': 10, 'end': 15, 'text': 'we are talking about the new gaming mouse'},
