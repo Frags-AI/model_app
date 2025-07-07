@@ -589,6 +589,7 @@ def edit_video(original_video_path, segments, output_video_path=None, fade_durat
         # IMPORTANT: If type error occurs the add below line of codes after line no. 299 in VideoClip.py of moviepy library in video folder
         # if fps is None:
         #     fps = self.fps
+        return output_video_path
     else:
         logging.info("No segments to include in the edited video.")
 

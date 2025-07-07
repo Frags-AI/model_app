@@ -2,11 +2,21 @@ from core import clip_anything as clip
 import supervision as sv
 import os
 from celery_app.app import celery
+from clients.aws import s3_service
+from clients.filesystem import StorageSystem
+from core.transfer import transfer_clips_to_backend
+from config import settings
 
 @celery.task(bind=True)
-def process_video(video_path: str, user_text_input: str):
-    video_frames_batches_dir = 'video_frames'
-    video_name = os.path.splitext(os.path.basename(video_path))[0]
+def process_video(s3_key: str, user_text_input: str):
+
+    ss = StorageSystem()
+
+    video_path = ss.create_download_path("videos", "s3_video.mp4")
+    s3_service.download_file(s3_key, video_path)
+
+
+    video_frames_batches_dir = ss.create_download_path("video_frames")
 
     sample_interval = clip.adjust_sample_interval(video_path)
     batch_size = clip.determine_chunk_size()
@@ -29,6 +39,10 @@ def process_video(video_path: str, user_text_input: str):
     )
 
     output_video_path = clip.edit_video(video_path, matching_segments)
+    url = f"{settings.API_URL}/api/model/clip_anything"
+    data = { "task_id": self.request.id, "status": "SUCCESS" }
+
+    transfer_clips_to_backend(url, output_video_path, data)
 
     return {
         "segments": matching_segments,
