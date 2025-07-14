@@ -7,14 +7,23 @@
 # You can add other services your application may depend on here, such as a
 # database or a cache. For examples, see the Awesome Compose repository:
 # https://github.com/docker/awesome-compose
+
 services:
   server:
     build:
       context: .
+      dockerfile: Dockerfile
     ports:
-      - 8000:8000
+      - "8000:8000"
+    volumes:
+      - ./src/models/pretrained:/app/src/models/pretrained
+      - ./uploads:/app/uploads
     env_file:
-      - ".env.production"
+      - .env
+    environment:
+      - CFG_PATH=/app/src/models/pretrained/yolov3.cfg
+      - WEIGHT_PATH=/app/src/models/pretrained/yolo.weights
+    restart: unless-stopped
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to

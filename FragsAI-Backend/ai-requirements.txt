@@ -1,0 +1,10 @@
+# AI and ML packages with compatible versions
+supervision==0.18.0
+torch==2.2.0
+torchvision==0.17.0
+tokenizers==0.18.0
+transformers==4.30.0
+timm==0.9.12
+moviepy==1.0.3
+nltk>=3.8.1
+matplotlib>=3.8.0

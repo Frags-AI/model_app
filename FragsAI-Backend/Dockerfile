@@ -44,9 +44,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Switch to the non-privileged user to run the application.
 USER root
 
+# Create necessary directories
+RUN mkdir -p /app/src/models/pretrained
+RUN mkdir -p /app/uploads
+
 # Copy the source code into the container.
 COPY . .
-
 
 # Expose the port that the application listens on.
 EXPOSE 8000

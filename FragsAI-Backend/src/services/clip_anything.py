@@ -14,9 +14,35 @@ import time
 from tqdm.auto import tqdm
 
 # Transformers and related deep learning tools
-# import flash_attn  # Flash attention support for transformer speedup
-import transformers
-from transformers import AutoModelForCausalLM, AutoProcessor  # Florence-2 model interface
+try:
+    import flash_attn  # Flash attention support for transformer speedup
+    HAS_FLASH_ATTN = True
+except ImportError:
+    HAS_FLASH_ATTN = False
+    print("flash_attn not available, continuing without it. This may affect performance but not functionality.")
+
+try:
+    import einops  # Required for some transformer models
+    HAS_EINOPS = True
+except ImportError:
+    HAS_EINOPS = False
+    print("einops not available, this may cause issues with some transformer models.")
+
+try:
+    import transformers
+    from transformers import AutoModelForCausalLM, AutoProcessor  # Florence-2 model interface
+    HAS_TRANSFORMERS = True
+except ImportError:
+    HAS_TRANSFORMERS = False
+    print("transformers not available, clip_anything functionality will be limited.")
+
+try:
+    import timm.layers  # Vision transformer layers
+    HAS_TIMM = True
+except ImportError:
+    HAS_TIMM = False
+    print("timm not available, clip_anything functionality will be limited.")
+
 import timm.layers  # Vision transformer layers
 
 # PIL and visualization
@@ -209,19 +235,55 @@ florence_models_dir = 'my_models/Florence_2'
 model_id = 'microsoft/Florence-2-large'
 
 # Load model and processor with GPU acceleration
-model = AutoModelForCausalLM.from_pretrained(
-    model_id,
-    cache_dir=florence_models_dir,
-    device_map="cuda",
-    trust_remote_code=True,
-    torch_dtype='auto'
-).eval().cuda()
+if HAS_TRANSFORMERS:
+    try:
+        # Try to import flash_attn but don't fail if it's not available
+        try:
+            import flash_attn
+            has_flash_attn = True
+        except ImportError:
+            has_flash_attn = False
+            logging.warning("flash_attn not available, will use standard attention mechanism")
+            
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            cache_dir=florence_models_dir,
+            device_map="cuda" if torch.cuda.is_available() else "cpu",
+            trust_remote_code=True,
+            torch_dtype='auto',
+            use_flash_attention_2=has_flash_attn
+        )
+        
+        if torch.cuda.is_available():
+            model = model.eval().cuda()
+        else:
+            model = model.eval()
+            logging.info("CUDA not available, using CPU for inference")
+            
+    except Exception as e:
+        logging.warning(f"Error loading model with default settings: {str(e)}")
+        try:
+            # Try loading with minimal settings
+            model = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                cache_dir=florence_models_dir,
+                trust_remote_code=True,
+                use_flash_attention_2=False
+            ).eval()
+            logging.info("Model loaded with minimal settings")
+        except Exception as e:
+            logging.error(f"Failed to load model: {str(e)}")
+            model = None
 
-processor = AutoProcessor.from_pretrained(
-    model_id,
-    cache_dir=florence_models_dir,
-    trust_remote_code=True
-)
+    try:
+        processor = AutoProcessor.from_pretrained(
+            model_id,
+            cache_dir=florence_models_dir,
+            trust_remote_code=True
+        )
+    except Exception as e:
+        logging.error(f"Failed to load processor: {str(e)}")
+        processor = None
 
 def run_florence2_inference(image, task_prompt, text_input=None):
     """
@@ -237,24 +299,27 @@ def run_florence2_inference(image, task_prompt, text_input=None):
         dict: A dictionary containing the results of the inference, where keys correspond to
               task prompts and values are the corresponding model outputs.
     """
-    prompt = task_prompt if text_input is None else task_prompt + text_input
+    if HAS_TRANSFORMERS:
+        prompt = task_prompt if text_input is None else task_prompt + text_input
 
-    inputs = processor(text=prompt, images=image, return_tensors="pt").to('cuda', torch.float16)
-    generated_ids = model.generate(
-        input_ids=inputs["input_ids"].cuda(),
-        pixel_values=inputs["pixel_values"].cuda(),
-        max_new_tokens=1024,
-        early_stopping=False,
-        do_sample=False,
-        num_beams=3,
-    )
-    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
-    parsed_answer = processor.post_process_generation(
-        generated_text,
-        task=task_prompt,
-        image_size=(image.width, image.height)
-    )
-    return parsed_answer
+        inputs = processor(text=prompt, images=image, return_tensors="pt").to('cuda', torch.float16)
+        generated_ids = model.generate(
+            input_ids=inputs["input_ids"].cuda(),
+            pixel_values=inputs["pixel_values"].cuda(),
+            max_new_tokens=1024,
+            early_stopping=False,
+            do_sample=False,
+            num_beams=3,
+        )
+        generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+        parsed_answer = processor.post_process_generation(
+            generated_text,
+            task=task_prompt,
+            image_size=(image.width, image.height)
+        )
+        return parsed_answer
+    else:
+        return {}
 
 def clean_text(text):
     """
@@ -293,40 +358,72 @@ def compare_texts(user_text_input, caption_text_input):
                Returns 0 if no matches are found.
     """
     # Clean and tokenize both inputs
-    user_words = clean_text(user_text_input) 
+    user_words = clean_text(user_text_input)
     caption_words = clean_text(caption_text_input)
 
-    # Find number of matched words
-    matched_words = user_words.intersection(caption_words) # Find matching/common words
-    matched_words = list(matched_words)
-    match_count = len(matched_words) # Total no.of matching/common words
     total_user_words = len(user_words) # Total user tokens/words
     total_caption_words = len(caption_words) # Total caption tokens/words
 
+    # Find number of matched words
+    # matched_words =  user_words.intersection(caption_words) # Find matching/common words
+    matched_words =  user_words.intersection(caption_words) if total_user_words > total_caption_words else caption_words.intersection(user_words) # Find matching/common words
+    matched_words = list(matched_words)
+    match_count = len(matched_words) # Total no.of matching/common words
+
     # Calculate match percentage
     if total_user_words > 0 and total_user_words > total_caption_words:
-      match_percent = (match_count / total_caption_words) * 100 
+      match_percent = (match_count / total_caption_words) * 100
     elif total_caption_words > 0 and total_caption_words > total_user_words:
       match_percent = (match_count / total_user_words) * 100
+    elif total_caption_words > 0 and total_user_words == total_caption_words:   
+      match_percent = (match_count / total_user_words) * 100        
     else:
       match_percent = 0
+    match_percent = round(match_percent,2)  
 
     # Print result if there’s at least one match
     # if match_count > 0:
     #   if total_user_words < total_caption_words:
-    #     print(f"Matched {match_count} user words out of {total_user_words} caption words ({match_percent:.2f}%)")
+    #     print(f"Matched {match_count} common words out of {total_user_words} user words ({match_percent:.2f}%)")
     #   elif total_user_words > total_caption_words:
-    #     print(f"Matched {match_count} caption words out of {total_caption_words} user words ({match_percent:.2f}%)")
+    #     print(f"Matched {match_count} common words out of {total_caption_words} caption words ({match_percent:.2f}%)")
     #   # print(f"caption text input: {caption_text_input}")
     #   # print(f"user prompt: {user_text_input}")
     #   print(f"Caption tokens: {sorted(caption_words)}")
     #   print(f"User tokens: {sorted(user_words)}")
     #   print(f"Matched words: {sorted(matched_words)}")
-      
+
     # else:
     #   print('Zero matched words')
 
     return match_percent
+
+def get_suffix(count):
+    """
+    Returns the appropriate suffix ('st', 'nd', 'rd', or 'th') for a given integer based on its last digit.
+
+    Args:
+        count (int): The integer value for which the suffix is to be determined.
+    Returns:
+        str: The integer with the correct suffix (e.g., '1st', '2nd', '3rd', '4th').
+    Example:
+        get_suffix(1)  # Output: '1st'
+        get_suffix(22) # Output: '22nd'
+    """
+    # Handle the exceptions for 11, 12, 13 (they always get 'th')
+    if 11 <= count % 100 <= 13:
+        return f"{count}th"
+    
+    # For 1, 2, 3, append 'st', 'nd', 'rd' respectively
+    if count % 10 == 1:
+        return f"{count}st"
+    elif count % 10 == 2:
+        return f"{count}nd"
+    elif count % 10 == 3:
+        return f"{count}rd"
+    
+    # For other numbers, append 'th'
+    return f"{count}th"  
 
 def get_timestamp_by_index(video_path, target_index):
     """
@@ -433,6 +530,7 @@ def draw_polygons(image, prediction, fill_mask=False):
 
     display(image)
 
+# version 1
 def find_object_segments(video_path, frames_batches, frame_indices_batches, user_text_input,
                          detail_level='high', thresholds=np.array([85, 90, 95], dtype=np.float32),
                          plot_matching_frames=False):  
@@ -468,6 +566,7 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
 
     segments = []
     match_started = False
+    match_seg_count = 0                         
     current_detail_level = detail_level
     batch_num = 0
 
@@ -494,9 +593,11 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
 
                 if match_percent is not None and match_percent >= thresholds_dict[current_detail_level]:
                     if not match_started:
+                        print(f"\n {get_suffix(match_seg_count)} Match started")
+                        match_started = True
+                        match_seg_count += 1
                         start_index = index
                         start_frame = frame
-                        match_started = True
                         start_results = run_florence2_inference(start_frame, '<CAPTION_TO_PHRASE_GROUNDING>', user_text_input)
 
                     end_index = index
@@ -508,24 +609,16 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
                         'start': get_timestamp_by_index(video_path, start_index),
                         'end': get_timestamp_by_index(video_path, end_index)
                     })
-
-                    segment_visuals.append({
-                        'start_frame': start_frame,
-                        'end_frame': end_frame,
-                        'start_results': start_results,
-                        'end_results': end_results,
-                        'start_index': start_index,
-                        'end_index': end_index
-                    })
-                    print(f" First matching segment found at frame no. {start_index} in btach no. {batch_num}\n Start: {segments[-1]['start']}, End: {segments[-1]['end']} | Start frame index: {start_index} End frame index: {end_index}")
+                    print(f" Ended")
+                    print(f"  {get_suffix(match_seg_count)} matching segment found at frame no. {start_index} in btach no. {batch_num}\n Start: {segments[-1]['start']}, End: {segments[-1]['end']} | Start frame index: {start_index} End frame index: {end_index}")
                     if plot_matching_frames:
-                      print(f'Start frame no. {start_index}')
+                      print(f' Start frame no. {start_index}')
                       plot_bbox(start_frame, start_results['<CAPTION_TO_PHRASE_GROUNDING>'])
-                      print(f'End frame no. {end_index}')
+                      print(f' End frame no. {end_index}')
                       plot_bbox(end_frame, end_results['<CAPTION_TO_PHRASE_GROUNDING>'])
 
                     match_started = False
-                    user_input = input(" Do you want to continue finding more segments? (yes/no): ")
+                    user_input = input("\n Do you want to continue finding more segments? (yes/no): ")
                     if user_input.lower() != 'yes':
                         progress_bar.update(len(batch_frames_list))
                         progress_bar.close()
@@ -541,13 +634,147 @@ def find_object_segments(video_path, frames_batches, frame_indices_batches, user
         batch_num += 1
 
     progress_bar.close()
-    print(f"Inference ended at frame no. {end_index}, batch {batch_num}")
     if plot_matching_frames:
-      print(f'Start frame no. {start_index}')
+      print(f' Start frame no. {start_index}')
       plot_bbox(start_frame, start_results['<CAPTION_TO_PHRASE_GROUNDING>'])
-      print(f'End frame no. {end_index}')
+      print(f' End frame no. {end_index}')
       plot_bbox(end_frame, end_results['<CAPTION_TO_PHRASE_GROUNDING>'])
+    print(f"Inference ended at frame no. {end_index}, batch {batch_num}") 
+                             
+    return segments
 
+# version 2
+def find_object_segments_v2(video_path, user_text_input,
+                             detail_level='high', sample_interval=15,
+                             thresholds=np.array([85, 90, 95], dtype=np.float32),
+                             plot_matching_frames=False):
+    """
+    Processes a video to identify segments (start and end timestamps of segments) where a given user's prompt/text matches the 
+    inferred captions from the video frames. The function segments the video based on matching text 
+    and returns the start and end timestamps for each matching segment.
+
+    Args:
+        video_path (str): Path to the video file to be processed.
+        user_text_input (str): The user's input text or prompt to match against the captions of each frame.
+        detail_level (str, optional): Level of detail for inference ('high', 'medium', 'low'). Default is 'high'.
+        sample_interval (int, optional): The frame sampling interval. A higher value will result in fewer frames being processed (default is 15).
+        thresholds (np.ndarray, optional): Match percentage thresholds in the order:
+                                           [<CAPTION>, <DETAILED_CAPTION>, <MORE_DETAILED_CAPTION>]. Default is [85., 90., 95.].
+        plot_matching_frames (bool, optional): If True, displays bounding boxes on the start and end matching frames.
+
+    Returns:
+        list of dict: List of dictionaries with 'start', 'end' timestamps. Each dictionary contains:
+            - 'start': The timestamp (in seconds) of the start of the matching segment.
+            - 'end': The timestamp (in seconds) of the end of the matching segment.
+    """
+
+    thresholds = sorted(thresholds)
+    thresholds = {
+        'high': thresholds[-1].item(),
+        'medium': thresholds[1].item(),
+        'low': thresholds[0].item()
+    }
+
+    task_prompts = {
+        'high': '<MORE_DETAILED_CAPTION>',
+        'medium': '<DETAILED_CAPTION>',
+        'low': '<CAPTION>'
+    }
+
+    segments = []
+    match_started = False
+    match_seg_count = 0
+    current_detail_level = detail_level
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print(f"Error opening video file {video_path}")
+        return []
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    frame_index = 0
+    pbar = tqdm(total=total_frames, desc="Running inference:")
+
+    while cap.isOpened():
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        frame = Image.fromarray(frame)
+        task_prompt = task_prompts[current_detail_level]
+
+        start_time = time.time()
+        results = run_florence2_inference(frame, task_prompt)
+        inference_time = time.time() - start_time
+
+        # Auto adjust detail level
+        if current_detail_level == 'high' and inference_time > 1:
+            print(f" Inference is slow with high detail level ({inference_time:.2f}s/frame), switching to medium...")
+            current_detail_level = 'medium'
+        elif current_detail_level == 'medium' and inference_time > 1:
+            print(f" Still slow with medium detail level ({inference_time:.2f}s/frame), switching to low...")
+            current_detail_level = 'low'
+
+        caption_text = results[task_prompt]
+        match_percent = compare_texts(user_text_input, caption_text)
+
+        if match_percent is not None and match_percent >= thresholds[current_detail_level]:
+            if not match_started:
+                match_started = True
+                match_seg_count += 1
+                start_index = frame_index
+                start_frame = frame
+                print(f"\n {get_suffix(match_seg_count)} Match started")
+                start_results = run_florence2_inference(start_frame, '<CAPTION_TO_PHRASE_GROUNDING>', user_text_input)
+            end_index = frame_index
+            end_frame = frame
+        else:
+            if match_started:
+                print(f" Ended")
+                end_results = run_florence2_inference(end_frame, '<CAPTION_TO_PHRASE_GROUNDING>', user_text_input)
+                segments.append({
+                    'start': get_timestamp_by_index(video_path, start_index),
+                    'end': get_timestamp_by_index(video_path, end_index)
+                })
+                print(f" {get_suffix(match_seg_count)} matching segment Start: {segments[-1]['start']}, End: {segments[-1]['end']} | Start frame index: {start_index} End frame index: {end_index}\n")
+                
+                if plot_matching_frames:
+                    print(f" Start Frame no.{start_index}")
+                    plot_bbox(start_frame, start_results['<CAPTION_TO_PHRASE_GROUNDING>'])
+                    print(f" End Frame no. {end_index}")
+                    plot_bbox(end_frame, end_results['<CAPTION_TO_PHRASE_GROUNDING>'])
+
+                match_started = False
+                user_input = input("\n Do you want to continue finding more segments? (yes/no): ")
+                if user_input.lower() != 'yes':
+                    pbar.close()
+                    print(f"Inference ended at frame no. {end_index}\n")
+                    break
+                else:
+                  print('Inference on...')
+                  
+        frame_index += sample_interval
+        pbar.update(sample_interval)
+
+    # Final segment check if video ends during match
+    if match_started:
+        segments.append({
+            'start': get_timestamp_by_index(video_path, start_index),
+            'end': get_timestamp_by_index(video_path, end_index)
+        })
+        print(f"  {get_suffix(match_seg_count)} matching segment:\n Start: {segments[-1]['start']}, End: {segments[-1]['end']} | Start frame index: {start_index} End frame index: {end_index}\n")     
+        if plot_matching_frames:
+          print(f" Start Frame no. {start_index}")
+          plot_bbox(start_frame, start_results['<CAPTION_TO_PHRASE_GROUNDING>'])
+          print(f" End Frame no. {end_index}")
+          plot_bbox(end_frame, end_results['<CAPTION_TO_PHRASE_GROUNDING>'])
+        print(f"Inference ended at frame no. {end_index}.\n")  
+
+    cap.release()
+    pbar.close()
     return segments
 
 # Utility function
@@ -612,6 +839,52 @@ def edit_video(original_video_path, segments, output_video_path=None, fade_durat
     else:
         logging.info("No segments to include in the edited video.")
 
+def process_video_with_prompt(video_path, prompt_text):
+    """
+    Process a video file with a text prompt to extract relevant clips.
+    This function serves as the main entry point for the API.
+    
+    Args:
+        video_path (str): Path to the input video file
+        prompt_text (str): Text description of content to extract from the video
+        
+    Returns:
+        str: Path to the output clipped video
+    """
+    try:
+        logging.info(f"Processing video: {video_path} with prompt: {prompt_text}")
+        
+        # Create output path
+        output_video_path = edit_paths(video_path)
+        
+        # Determine optimal parameters based on video
+        sample_interval = adjust_sample_interval(video_path)
+        
+        # Find segments matching the prompt
+        logging.info("Finding segments matching the prompt...")
+        matching_segments = find_object_segments_v2(
+            video_path, 
+            prompt_text, 
+            sample_interval=sample_interval
+        )
+        
+        if not matching_segments:
+            logging.warning("No matching segments found in the video")
+            return None
+            
+        logging.info(f"Found {len(matching_segments)} matching segments")
+        
+        # Edit the video to create the final clip
+        logging.info("Creating final video clip...")
+        edit_video(video_path, matching_segments, output_video_path, fade_duration=0.5)
+        
+        logging.info(f"Video processing complete. Output saved to: {output_video_path}")
+        return output_video_path
+        
+    except Exception as e:
+        logging.error(f"Error processing video: {str(e)}")
+        raise Exception(f"Failed to process video: {str(e)}")
+
 def main():
     """
     Main pipeline to process video, extract relevant segments based on prompt,
@@ -620,7 +893,8 @@ def main():
     video_path = 'your_video.mp4'  # Path to the input video file
     video_frames_batches_dir = '/video_frames'  # Directory where folder of frames will be saved in batches
     video_name = os.path.splitext(os.path.basename(video_path))[0]  # Extract the video name without the extension
-    output_video_path = None
+    output_video_path_to_edit = 'your_path_to_edited_clip.mp4' # or None
+    output_video_path = edit_paths(output_video_path_to_edit) if output_video_path_to_edit is not None else None
 
     sample_interval = adjust_sample_interval(video_path)  # Dynamically adjust the sample interval based on video length
     batch_size = determine_chunk_size()  # Dynamically adjust the batch size based on available system memory
@@ -643,9 +917,15 @@ def main():
     user_text_input = 'your prompt'
 
     # Step 4: Find video segments that match the user's prompt input by comparing it with captions generated from frames
-    matching_segments = find_object_segments(video_path, frames_batches, frame_indices_batches, user_text_input)
+    #(Use  `find_object_segments` or `find_object_segments_v2` as per your convenience, recommended: `find_object_segments_v2`)
+    # use version 1
+    # matching_segments = find_object_segments(video_path, frames_batches, frame_indices_batches, user_text_input)
+    # use vesrion 2
+    matching_segments = find_object_segments_v2(video_path, user_text_input, sample_interval=sample_interval)
 
     # Step 5: Edit the video by extracting the matching segments and creating a highlight video
-    edit_video(video_path, matching_segments)  # Edit the video with the found segments and save the output
+    edit_video(video_path, matching_segments, output_video_path)  # Edit the video with the found segments and save the output
 
-
+# Entry point
+if __name__ == '__main__':
+    main()
