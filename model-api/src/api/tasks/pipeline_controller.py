@@ -5,7 +5,6 @@ from core.pipeline.semantic_story import semantic_pipeline
 from core.transfer import transfer_clips_to_backend
 import logging
 from config import settings
-from uuid import uuid4
 from clients.aws import s3_service
 from clients.filesystem import StorageSystem
 
@@ -21,7 +20,6 @@ def create_video_pipeline(self, s3_key: str, filename: str):
     s3_service.download_file(s3_key, input_path)
 
     output_folder = main_pipeline(input_path, storage_system, update_progress)
-    self.update_state(state="SUCCESS", meta={"stage": "Finalizing Changes", "progress": 100, "state": "COMPLETE"})
 
     url = f"{settings.API_URL}/api/model/project"
     data = { "task_id": self.request.id, "status": "SUCCESS" }

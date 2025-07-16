@@ -1,102 +1,79 @@
 import moviepy.editor as mp
-import logging
-import os
+import subprocess
 
-def enhance_video_aspect_ratio(
-    input_video: str,
-    output_folder: str,
-    desired_aspect_ratio: float,
-    method: str,
-    target_width: int = 720,
-    target_height: int = 1280,
-) -> str | None:
+def convert_1to1_ratio(input_path: str, output_path: str, method: str = "crop") -> str | None:
     """
-    Enhances the video by adjusting its aspect ratio for platforms like TikTok/Shorts.
+    Converts aspect ratio to 1:1 format.
     Args:
-        input_video (str): Path to the input video.
-        output_folder (str): Folder to save the adjusted video.
-        desired_aspect_ratio (float): Desired aspect ratio (e.g., 9/16 for TikTok).
+        input_path (str): Path to the input video.
+        output_path (str): Pathh to save the adjusted video.
         method (str): "crop" (center-crop overflow) or "pad" (add black bars).
-        target_width (int): Target width for the output video.
-        target_height (int): Target height for the output video.
     Returns:
         str | None: Path to the output video, or None on error.
     """
+
+    command = [
+        "ffmpeg", "-y", "-i", input_path, "-vf", 
+        "crop='if(gt(a,1),ih,iw)':'if(gt(a,1),ih,iw)',scale=720:720,setsar=1", 
+        "-c:a", "copy", output_path
+    ]
+
     try:
-        video = mp.VideoFileClip(input_video)
-        source_width, source_height = video.size
-        current_aspect_ratio = source_width / source_height
-        method = method if method else "crop"
+        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        print("FFmpeg output:", result.stdout)
+        print("FFmpeg completed successfully.")
+    except subprocess.CalledProcessError as e:
+        print("FFmpeg failed:", e.stderr)
 
-        if desired_aspect_ratio == 1:
-            min_size = min(target_height, target_width)
-            target_width = min_size
-            target_height = min_size
-        if current_aspect_ratio < desired_aspect_ratio:
-            # If video is too tall, then scale width up to target_width
-            scale_factor = target_width / source_width
-        else:
-            # If video is too wide, scale height up to target_height
-            scale_factor = target_height / source_height
+def convert_9to16_ratio(input_path: str, output_path: str, method: str = "crop") -> str | None:
+    """
+    Converts aspect ratio to 9:16 format.
+    Args:
+        input_path (str): Path to the input video.
+        output_path (str): Pathh to save the adjusted video.
+        method (str): "crop" (center-crop overflow) or "pad" (add black bars).
+    Returns:
+        str | None: Path to the output video, or None on error.
+    """
 
-        resized = video.resize(scale_factor)
+    command = [
+        "ffmpeg", "-y", "-i", input_path, "-vf", 
+        "scale=w='if(gt(a,9/16),720,-1)':h='if(gt(a,9/16),-1,1280)',pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1", 
+        "-c:a", "copy", output_path
+    ]
 
-        if method == "crop":
-            fitted = resized.crop(
-                x_center=resized.w / 2,
-                y_center=resized.h / 2,
-                width=target_width,
-                height=target_height,
-            )
-        elif method == "pad":
-            pad_left = max(0, (target_width - resized.w) / 2)
-            pad_right = pad_left
-            pad_top = max(0, (target_height - resized.h) / 2)
-            pad_bottom = pad_top
+    try:
+        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        print("FFmpeg output:", result.stdout)
+        print("FFmpeg completed successfully.")
+    except subprocess.CalledProcessError as e:
+        print("FFmpeg failed:", e.stderr)
 
-            padded = resized.margin(
-                left=int(pad_left),
-                right=int(pad_right),
-                top=int(pad_top),
-                bottom=int(pad_bottom),
-                color=(0, 0, 0),
-            )
-            fitted = padded.crop(
-                x_center=padded.w / 2,
-                y_center=padded.h / 2,
-                width=target_width,
-                height=target_height,
-            )
-        else:
-            raise ValueError(f"Unknown method '{method}'. Use 'crop' or 'pad'.")
+def convert_16to9_ratio(input_path: str, output_path: str, method: str = "crop") -> str | None:
+    """
+    Converts aspect ratio to 16:9 format.
+    Args:
+        input_path (str): Path to the input video.
+        output_path (str): Pathh to save the adjusted video.
+        method (str): "crop" (center-crop overflow) or "pad" (add black bars).
+    Returns:
+        str | None: Path to the output video, or None on error.
+    """
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i", input_path,
+        "-vf",
+        "scale=w='if(gt(a,16/9),1280,-1)':h='if(gt(a,16/9),-1,720)',pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1",
+        "-c:a", "copy",
+        output_path
+    ]
 
-        base_name, ext = os.path.splitext(os.path.basename(input_video))
-        output_name = f"{base_name}_aspect{ext}"
-        output_video_path = os.path.join(output_folder, output_name)
+    try:
+        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        print("FFmpeg output:", result.stdout)
+        print("FFmpeg completed successfully.")
+    except subprocess.CalledProcessError as e:
+        print("FFmpeg failed:", e.stderr)
+    
 
-        os.makedirs(output_folder, exist_ok=True)
-
-        fitted.write_videofile(
-            output_video_path,
-            codec="libx264",
-            audio_codec="aac",
-            preset="ultrafast",
-            ffmpeg_params=["-crf", "23"],
-        )
-
-        logging.info(f"Saved aspect-adjusted video to: {output_video_path}")
-        return output_video_path
-
-    except Exception as e:
-        logging.error(f"Error enhancing video aspect ratio: {e}")
-        return None
-
-    finally:
-        try:
-            video.close()
-        except Exception:
-            pass
-        try:
-            fitted.close()
-        except Exception:
-            pass
