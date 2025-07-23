@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     client_url: str = os.environ.get("CLIENT_URL")
     signing_secret: str = os.environ.get("MODEL_SIGNING_SECRET")
     openai_key: str = os.environ.get("OPENAI_API_KEY")
+    elevenlabs_api_key: str = os.environ.get("ELEVENLABS_API_KEY")
+    stable_diffusion_api_key: str = os.environ.get("STABLE_DIFFUSION_API_KEY")
     cfg_path: str | None = os.environ.get("CFG_PATH", os.path.abspath("models/pretrained/yolov3.cfg"))
     weight_path: str | None = os.environ.get("WEIGHT_PATH", os.path.abspath("models/pretrained/yolo.weights"))        
 

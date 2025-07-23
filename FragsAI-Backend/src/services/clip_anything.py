@@ -777,7 +777,118 @@ def find_object_segments_v2(video_path, user_text_input,
     pbar.close()
     return segments
 
-# Utility function
+def process_video_with_prompt(video_path, prompt_text, max_clips=10):
+    """
+    Process a video file with a text prompt to extract relevant clips.
+    This function serves as the main entry point for the API.
+    
+    Args:
+        video_path (str): Path to the input video file
+        prompt_text (str): Text description of content to extract from the video
+        max_clips (int): Maximum number of clips to generate (default: 10)
+        
+    Returns:
+        dict: Dictionary containing paths to the output clipped videos and their virality scores
+    """
+    try:
+        logging.info(f"Processing video: {video_path} with prompt: {prompt_text}")
+        
+        # Determine optimal parameters based on video
+        sample_interval = adjust_sample_interval(video_path)
+        
+        # Find segments matching the prompt
+        logging.info("Finding segments matching the prompt...")
+        matching_segments = find_object_segments_v2(
+            video_path, 
+            prompt_text, 
+            sample_interval=sample_interval
+        )
+        
+        if not matching_segments:
+            logging.warning("No matching segments found in the video")
+            return {"clips": [], "message": "No matching segments found"}
+            
+        logging.info(f"Found {len(matching_segments)} matching segments")
+        
+        # Calculate virality score for each segment
+        clips_with_scores = []
+        for i, segment in enumerate(matching_segments):
+            # Calculate virality score based on multiple factors
+            # 1. Duration (shorter clips tend to be more viral)
+            duration = segment['end'] - segment['start']
+            duration_score = max(0, 1 - (duration / 60))  # Prefer clips under 60 seconds
+            
+            # 2. Position in video (earlier matches might be more relevant)
+            position_score = 1 - (i / len(matching_segments))
+            
+            # 3. Match confidence (if available in the segment data)
+            match_score = segment.get('match_confidence', 0.85)
+            
+            # 4. Segment length (prefer segments that aren't too short)
+            length_penalty = 0 if duration >= 5 else (5 - duration) / 5
+            
+            # Calculate final virality score (weighted average)
+            virality_score = (0.3 * duration_score + 
+                             0.2 * position_score + 
+                             0.4 * match_score - 
+                             0.1 * length_penalty)
+            
+            # Normalize to 0-100 scale
+            virality_score = min(100, max(0, virality_score * 100))
+            
+            # Add to list with score
+            clips_with_scores.append({
+                "segment": segment,
+                "virality_score": round(virality_score, 1)
+            })
+        
+        # Sort by virality score (descending)
+        clips_with_scores.sort(key=lambda x: x["virality_score"], reverse=True)
+        
+        # Limit to max_clips
+        clips_with_scores = clips_with_scores[:max_clips]
+        
+        # Generate output clips
+        output_clips = []
+        for i, clip_data in enumerate(clips_with_scores):
+            segment = clip_data["segment"]
+            score = clip_data["virality_score"]
+            
+            # Create unique output path for each clip
+            base_name = os.path.splitext(os.path.basename(video_path))[0]
+            clip_filename = f"{base_name}_clip_{i+1}_{score:.1f}.mp4"
+            
+            # Create clips directory if it doesn't exist
+            clips_dir = os.path.join(os.path.dirname(os.path.dirname(video_path)), "clips")
+            os.makedirs(clips_dir, exist_ok=True)
+            
+            output_path = os.path.join(clips_dir, clip_filename)
+            
+            # Edit the video to create the clip
+            logging.info(f"Creating clip {i+1}/{len(clips_with_scores)}...")
+            edit_video(video_path, [segment], output_path, fade_duration=0.5)
+            
+            # Add to output list
+            output_clips.append({
+                "path": output_path,
+                "virality_score": score,
+                "start_time": segment["start"],
+                "end_time": segment["end"],
+                "duration": segment["end"] - segment["start"]
+            })
+        
+        logging.info(f"Video processing complete. Generated {len(output_clips)} clips.")
+        return {
+            "clips": output_clips,
+            "message": f"Successfully generated {len(output_clips)} clips"
+        }
+        
+    except Exception as e:
+        logging.error(f"Error processing video: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
+        return {"clips": [], "message": f"Error processing video: {str(e)}"}
+
 def edit_paths(file_path):
     """
     Generates a unique output path for the edited video/audio by appending '_edited_output'.
@@ -838,52 +949,6 @@ def edit_video(original_video_path, segments, output_video_path=None, fade_durat
         #     fps = self.fps
     else:
         logging.info("No segments to include in the edited video.")
-
-def process_video_with_prompt(video_path, prompt_text):
-    """
-    Process a video file with a text prompt to extract relevant clips.
-    This function serves as the main entry point for the API.
-    
-    Args:
-        video_path (str): Path to the input video file
-        prompt_text (str): Text description of content to extract from the video
-        
-    Returns:
-        str: Path to the output clipped video
-    """
-    try:
-        logging.info(f"Processing video: {video_path} with prompt: {prompt_text}")
-        
-        # Create output path
-        output_video_path = edit_paths(video_path)
-        
-        # Determine optimal parameters based on video
-        sample_interval = adjust_sample_interval(video_path)
-        
-        # Find segments matching the prompt
-        logging.info("Finding segments matching the prompt...")
-        matching_segments = find_object_segments_v2(
-            video_path, 
-            prompt_text, 
-            sample_interval=sample_interval
-        )
-        
-        if not matching_segments:
-            logging.warning("No matching segments found in the video")
-            return None
-            
-        logging.info(f"Found {len(matching_segments)} matching segments")
-        
-        # Edit the video to create the final clip
-        logging.info("Creating final video clip...")
-        edit_video(video_path, matching_segments, output_video_path, fade_duration=0.5)
-        
-        logging.info(f"Video processing complete. Output saved to: {output_video_path}")
-        return output_video_path
-        
-    except Exception as e:
-        logging.error(f"Error processing video: {str(e)}")
-        raise Exception(f"Failed to process video: {str(e)}")
 
 def main():
     """

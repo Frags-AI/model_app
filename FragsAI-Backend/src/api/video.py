@@ -10,9 +10,23 @@ import os
 router = APIRouter()
 
 @router.post("/upload/")
-async def upload_video(video: Annotated[UploadFile, File(...)], video_name: Annotated[str, Form()], job_id: Annotated[str, Form()], background_tasks: BackgroundTasks ):
+async def upload_video(
+    video: Annotated[UploadFile, File(...)], 
+    video_name: Annotated[str, Form()] = None, 
+    job_id: Annotated[str, Form()] = None, 
+    background_tasks: BackgroundTasks = None
+):
     if not video:
         raise HTTPException(status_code=400, detail="Please upload a file")
+    
+    # Use the original filename if video_name is not provided
+    if not video_name:
+        video_name = video.filename
+    
+    # Generate a job_id if not provided
+    if not job_id:
+        import uuid
+        job_id = str(uuid.uuid4())
     
     ext = video_name.split(".")[-1].lower()
     if ext not in settings.allowed_extensions:
@@ -29,7 +43,11 @@ async def upload_video(video: Annotated[UploadFile, File(...)], video_name: Anno
         while chunk := await video.read(1024 * 1024):
             f.write(chunk)
 
-    background_tasks.add_task(process_and_update_video, job_id, save_path)
-    logging.info("File has been successfully uploaded. Video processing will begin shortly")
+    # Only process the video if background_tasks is provided
+    if background_tasks:
+        background_tasks.add_task(process_and_update_video, job_id, save_path)
+        logging.info("File has been successfully uploaded. Video processing will begin shortly")
+    else:
+        logging.info("File has been successfully uploaded without background processing")
 
-    return JSONResponse(content={"message": "File has been temporarily stored", "job_id": job_id}, media_type="application/json")
+    return JSONResponse(content={"message": "File has been temporarily stored", "job_id": job_id, "file_path": save_path}, media_type="application/json")

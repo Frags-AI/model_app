@@ -36,11 +36,18 @@ async def transcribe_video(
             min_silence_len=min_silence_len
         )
         
-        return JSONResponse({
-            "message": "Video transcribed successfully",
-            "transcription_id": transcription_id,
-            "status": "success"
-        })
+        if result.get("success"):
+            return JSONResponse({
+                "message": "Video transcribed successfully",
+                "transcription_id": transcription_id,
+                "transcription_text": result.get("transcription_text", ""),
+                "status": "success"
+            })
+        else:
+            return JSONResponse({
+                "error": result.get("message", "Unknown error occurred"),
+                "status": "error"
+            }, status_code=500)
     except Exception as e:
         return JSONResponse({
             "error": f"Transcription failed: {str(e)}",

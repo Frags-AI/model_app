@@ -35,7 +35,16 @@ RUN adduser \
 # Leverage a bind mount to requirements.txt to avoid having to copy them into
 # into this layer.
 
-RUN apt-get update && apt-get install ffmpeg libsm6 libxext6 -y
+# Update package lists and install system dependencies with retry logic
+RUN apt-get update --fix-missing && \
+    apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libsm6 \
+        libxext6 \
+        wget \
+        curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=bind,source=requirements.txt,target=requirements.txt \

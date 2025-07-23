@@ -1,13 +1,43 @@
-from fastapi import APIRouter, Form
+from fastapi import APIRouter, Form, HTTPException
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from .services import script_controller
 
 router = APIRouter()
 
+class ScriptRequest(BaseModel):
+    topic: str
+    tone: str = "informative"
+    duration: int = 60
+
 @router.post("/generate/")
-async def generate_script(prompt: str = Form(...)):
+async def generate_script(request: ScriptRequest):
     """
-    Generate a script based on a prompt using OpenAI's GPT-4
+    Generate a script based on topic, tone, and duration using OpenAI's GPT-4
+    """
+    try:
+        result = script_controller.generate_script_with_params(
+            topic=request.topic,
+            tone=request.tone,
+            duration=request.duration
+        )
+        
+        if isinstance(result, dict) and "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        
+        return JSONResponse({
+            "message": "Script generated successfully",
+            "script": result["script"],
+            "metadata": result.get("metadata", {}),
+            "status": "success"
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-legacy/")
+async def generate_script_legacy(prompt: str = Form(...)):
+    """
+    Generate a script based on a prompt using OpenAI's GPT-4 (legacy endpoint)
     """
     result = script_controller.generate_script(prompt)
     
