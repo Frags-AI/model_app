@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from config import settings
 from api.router import router as api_router
 from websocket.router import router as ws_router
+import os
 
 app = FastAPI()
 app.add_middleware(
@@ -23,6 +25,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Create directories for static files
+os.makedirs("thumbnails", exist_ok=True)
+os.makedirs("clips", exist_ok=True)
+
+# Mount static files
+app.mount("/thumbnails", StaticFiles(directory="thumbnails"), name="thumbnails")
+app.mount("/clips", StaticFiles(directory="clips"), name="clips")
 
 # Mount routes
 app.include_router(api_router, prefix="/api")
